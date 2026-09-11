@@ -4,7 +4,7 @@
 
 핵심 변경:
 - AI를 서비스 중심에서 빼고 전체 통신 서비스 안의 하나의 검색 기능으로 배치
-- U+one 모바일에서 관측한 56px 헤더 / 흰 배경 / Pretendard / #FF2E98 / pill UI / 하단 5탭 문법 유지
+- 모바일에서 관측한 56px 헤더 / 흰 배경 / Pretendard / #FF2E98 / pill UI / 하단 5탭 문법 유지
 - 데스크톱은 소비자 통신사 웹사이트처럼 Global Navigation + Editorial Landing 구조
 - AI 화면은 기존의 단순 카드형 챗봇에서 Thread / 상태 / 실시간 인기 질문 / 상품 카드 / 지도 / 로그인 / 오류 / 재시도 / FAQ 미응답 등 실제 서비스 흐름 중심으로 변경
 
