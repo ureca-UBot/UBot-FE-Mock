@@ -28,6 +28,10 @@ python -m http.server 8080
 ```
 브라우저에서 `http://localhost:8080`
 
+또는
+
+`https://ureca-final-project-temp.github.io/UBot-FE-Mock/`
+
 모바일은 Chrome DevTools에서 360x616 또는 Android/iPhone viewport로 확인하면 됩니다.
 
 모든 상품/고객/위치/응답 데이터는 프로젝트 시연용 Mock입니다.
