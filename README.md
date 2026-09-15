@@ -1,6 +1,8 @@
-# U봇 Responsive Service Mock v4
+# U봇 Responsive Service Mock v4 · Vite + React
 
-이번 버전은 10개 시연 시나리오를 실제로 클릭해서 보여줄 수 있게 만든 HTML/CSS/Vanilla JS 프론트 Mock입니다.
+기존 HTML/CSS/Vanilla JS Mock을 Vite + React 개발 환경으로 옮긴 버전입니다. 기존 화면과 10개 시연 시나리오는 그대로 유지합니다.
+
+현재 1차 마이그레이션 단계에서는 기존 마크업과 시연 로직을 React 엔트리에서 재사용합니다. 이후 화면별 컴포넌트와 React 상태로 순차 분리할 수 있습니다.
 
 핵심 변경:
 - AI를 서비스 중심에서 빼고 전체 통신 서비스 안의 하나의 검색 기능으로 배치
@@ -24,9 +26,17 @@
 
 ## 실행
 ```bash
-python -m http.server 8080
+npm install
+npm run dev
 ```
-브라우저에서 `http://localhost:8080`
+
+Vite가 출력하는 로컬 주소(기본 `http://localhost:5173`)로 접속합니다.
+
+프로덕션 빌드 확인:
+
+```bash
+npm run build
+```
 
 또는
 
