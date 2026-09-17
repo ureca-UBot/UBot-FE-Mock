@@ -32,6 +32,34 @@ npm run dev
 
 Vite가 출력하는 로컬 주소(기본 `http://localhost:5173`)로 접속합니다.
 
+## 각자 로컬 Spring 서버 연결
+
+두 명이 같은 프론트 저장소를 사용하면서 각자 자신의 Spring Boot 서버를 붙일 수 있습니다.
+
+먼저 `.env.example`을 `.env.local`로 복사합니다.
+
+```bash
+copy .env.example .env.local
+```
+
+각 개발자는 자신의 Spring 서버 주소만 다르게 설정하면 됩니다.
+
+```env
+VITE_API_BASE_URL=/api
+VITE_API_PROXY_TARGET=http://localhost:8080
+```
+
+프론트에서는 `src/api/client.js`의 공통 API client를 사용합니다.
+
+```js
+import { api } from './api/client.js';
+
+const products = await api.get('/products');
+const result = await api.post('/login', { id: 'user', password: 'pw' });
+```
+
+개발 중 `/api/...` 요청은 Vite가 각자의 `VITE_API_PROXY_TARGET`으로 전달하므로, 기본적인 로컬 개발에서는 Spring 쪽 CORS 설정 없이도 사용할 수 있습니다. `.env.local`을 바꾼 뒤에는 `npm run dev`를 다시 시작해야 합니다.
+
 프로덕션 빌드 확인:
 
 ```bash
