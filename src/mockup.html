@@ -382,35 +382,25 @@
             <div><span>STORE FINDER</span><h2>원하는 매장을 찾아보세요</h2></div>
             <p>주소·매장명 검색과 지역별 조건 검색을 함께 사용할 수 있어요.</p>
           </div>
-          <div class="store-search-large"><span class="store-search-icon" aria-hidden="true">⌕</span><input id="storeSearchInput" value="서울 강남구 역삼동" placeholder="주소 또는 매장명을 입력해 주세요" aria-label="매장 검색 지역" /><button id="storeCurrentLocation" class="store-location-button" type="button">◎ 내 위치</button><button id="storeSearchButton" type="button">검색</button></div>
+          <div class="store-search-large"><span class="store-search-icon" aria-hidden="true">⌕</span><input id="storeSearchInput" value="서울 강남구 역삼동" placeholder="주소 또는 매장명을 입력해 주세요" aria-label="매장 검색 지역" /><button id="storeCurrentLocation" class="store-location-button" type="button">내 위치</button><button id="storeSearchButton" type="button">검색</button></div>
           <div class="store-region-search" aria-label="지역별 매장 검색">
             <label><span>시/도</span><select id="storeSido" aria-label="시도 선택">
               <option value="">전체 시/도</option>
-              <option value="서울특별시">서울특별시</option>
-              <option value="부산광역시">부산광역시</option>
-              <option value="대구광역시">대구광역시</option>
-              <option value="인천광역시">인천광역시</option>
-              <option value="광주광역시">광주광역시</option>
-              <option value="대전광역시">대전광역시</option>
-              <option value="울산광역시">울산광역시</option>
-              <option value="세종특별자치시">세종특별자치시</option>
-              <option value="경기도">경기도</option>
-              <option value="강원특별자치도">강원특별자치도</option>
-              <option value="충청북도">충청북도</option>
-              <option value="충청남도">충청남도</option>
-              <option value="전북특별자치도">전북특별자치도</option>
-              <option value="전라남도">전라남도</option>
-              <option value="경상북도">경상북도</option>
-              <option value="경상남도">경상남도</option>
-              <option value="제주특별자치도">제주특별자치도</option>
             </select></label>
-            <label><span>시/군/구</span><input id="storeSigungu" type="text" placeholder="예: 강남구" aria-label="시군구 입력" /></label>
-            <label><span>제공 서비스</span><select id="storeServiceType" aria-label="매장 서비스 선택">
-              <option value="">전체 서비스</option>
-              <option value="IDENTITY_THEFT_REPORT">명의도용 접수</option>
-              <option value="APPLE_AS">애플 A/S</option>
-              <option value="FOREIGN_LANGUAGE_SUPPORT">외국어 지원</option>
+            <label><span>시/군/구</span><select id="storeSigungu" aria-label="시군구 선택" disabled>
+              <option value="">전체 시/군/구</option>
             </select></label>
+            <fieldset class="store-service-filter">
+              <legend>제공 서비스 <small>복수 선택 가능</small></legend>
+              <button class="store-service-toggle" id="storeServiceToggle" type="button" aria-expanded="false" aria-controls="storeServicePanel">
+                <span id="storeServiceSummary">전체 서비스</span><i aria-hidden="true">⌄</i>
+              </button>
+              <div class="store-service-options" id="storeServicePanel" hidden>
+                <label><input type="checkbox" name="storeServiceType" value="IDENTITY_THEFT_REPORT" /><span>명의도용 접수</span></label>
+                <label><input type="checkbox" name="storeServiceType" value="APPLE_AS" /><span>애플 A/S</span></label>
+                <label><input type="checkbox" name="storeServiceType" value="FOREIGN_LANGUAGE_SUPPORT" /><span>외국어 지원</span></label>
+              </div>
+            </fieldset>
             <button id="storeRegionSearchButton" type="button">조건으로 찾기</button>
           </div>
           <div class="store-help-strip"><span><b>TIP</b> 지도를 움직이면 현재 보이는 영역의 매장을 자동으로 다시 보여드려요.</span><span>지역이나 서비스 조건을 선택하면 결과를 더 빠르게 좁힐 수 있습니다.</span></div>
@@ -427,7 +417,15 @@
           <aside class="stores-list">
             <div class="stores-list-head"><div><span>NEARBY STORE</span><h3>가까운 대리점</h3></div><small>매장을 선택하면 지도에서 위치를 확인할 수 있어요.</small></div>
             <div id="storeListItems" class="store-list-items"></div>
-            <div class="store-list-footer"><span>방문 전에 영업시간과 전화번호를 확인해 주세요.</span><button class="reserve-main">선택한 매장 방문 예약</button></div>
+            <div class="store-list-footer">
+              <div class="store-pagination" id="storePagination" hidden>
+                <button id="storePrevPage" type="button">이전</button>
+                <span id="storePageInfo">1 / 1</span>
+                <button id="storeNextPage" type="button">다음</button>
+              </div>
+              <span>방문 전에 영업시간과 전화번호를 확인해 주세요.</span>
+              <button class="reserve-main">선택한 매장 방문 예약</button>
+            </div>
           </aside>
         </div>
       </div>

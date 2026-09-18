@@ -6,6 +6,20 @@ const DEFAULT_LOCATION = {
   label: '서울 강남구 역삼동',
 };
 
+const KOREA_MAP_LIMIT = {
+  minLatitude: 33,
+  maxLatitude: 39,
+  minLongitude: 124,
+  maxLongitude: 132,
+  minLevel: 1,
+  maxLevel: 13,
+};
+
+const STORE_PAGE_SIZE = 20;
+const MAP_LIST_LIMIT = 50;
+const SERVER_CLUSTER_MIN_LEVEL = 9;
+const VIEWPORT_REQUEST_DELAY = 350;
+
 let kakaoMapsPromise;
 
 function unwrap(response) {
@@ -19,6 +33,10 @@ function formatDistance(distanceKm) {
   if (!Number.isFinite(distanceKm)) return '';
   if (distanceKm < 1) return `${Math.max(1, Math.round(distanceKm * 1000))}m`;
   return `${distanceKm.toFixed(distanceKm < 10 ? 1 : 0)}km`;
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function loadKakaoMaps() {
@@ -54,7 +72,7 @@ function loadKakaoMaps() {
 
     script.dataset.ubotKakaoMap = '1';
     script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=clusterer`;
     script.addEventListener('load', onReady, { once: true });
     script.addEventListener('error', () => reject(new Error('카카오 지도 SDK 로드에 실패했습니다.')), { once: true });
     document.head.appendChild(script);
@@ -85,31 +103,127 @@ export function setupStoreLocator() {
   const searchButton = document.querySelector('#storeSearchButton');
   const locationButton = document.querySelector('#storeCurrentLocation');
   const sidoSelect = document.querySelector('#storeSido');
-  const sigunguInput = document.querySelector('#storeSigungu');
-  const serviceTypeSelect = document.querySelector('#storeServiceType');
+  const sigunguSelect = document.querySelector('#storeSigungu');
+  const serviceTypeInputs = [...document.querySelectorAll('input[name="storeServiceType"]')];
+  const serviceToggle = document.querySelector('#storeServiceToggle');
+  const servicePanel = document.querySelector('#storeServicePanel');
+  const serviceSummary = document.querySelector('#storeServiceSummary');
   const regionSearchButton = document.querySelector('#storeRegionSearchButton');
   const statusElement = document.querySelector('#storeSearchStatus');
   const countElement = document.querySelector('#storeResultCount');
+  const paginationElement = document.querySelector('#storePagination');
+  const pageInfoElement = document.querySelector('#storePageInfo');
+  const prevPageButton = document.querySelector('#storePrevPage');
+  const nextPageButton = document.querySelector('#storeNextPage');
 
   if (!mapElement || !listElement || !searchInput || !searchButton || !statusElement) return;
 
   let maps;
   let map;
   let infoWindow;
+  let markerClusterer;
   let markers = [];
   let stores = [];
   let selectedStoreId = null;
   let viewportRequestId = 0;
   let viewportTimer = null;
+  let viewportAbortController = null;
+  let lastViewportRequestKey = '';
   let mapInitPromise = null;
   let suppressViewportUntil = 0;
+  let currentRegionPage = 0;
+  let regionSearchActive = false;
+
+  const keepMapInsideKorea = () => {
+    if (!map || !maps) return false;
+    const center = map.getCenter();
+    const latitude = clamp(
+      center.getLat(),
+      KOREA_MAP_LIMIT.minLatitude,
+      KOREA_MAP_LIMIT.maxLatitude,
+    );
+    const longitude = clamp(
+      center.getLng(),
+      KOREA_MAP_LIMIT.minLongitude,
+      KOREA_MAP_LIMIT.maxLongitude,
+    );
+    if (latitude === center.getLat() && longitude === center.getLng()) return false;
+
+    map.setCenter(new maps.LatLng(latitude, longitude));
+    return true;
+  };
 
   const setStatus = (message, isError = false) => {
     statusElement.textContent = message;
     statusElement.classList.toggle('error', isError);
   };
 
+  const getSelectedServices = () => serviceTypeInputs
+    .filter((input) => input.checked)
+    .map((input) => ({ code: input.value, label: input.nextElementSibling?.textContent || input.value }));
+
+  const updateServiceSummary = () => {
+    const selectedServices = getSelectedServices();
+    if (!serviceSummary) return;
+    if (!selectedServices.length) serviceSummary.textContent = '전체 서비스';
+    else if (selectedServices.length === 1) serviceSummary.textContent = selectedServices[0].label;
+    else serviceSummary.textContent = `${selectedServices.length}개 서비스 선택`;
+  };
+
+  const closeServicePanel = () => {
+    if (!servicePanel || !serviceToggle) return;
+    servicePanel.hidden = true;
+    serviceToggle.setAttribute('aria-expanded', 'false');
+  };
+
+  const toggleServicePanel = () => {
+    if (!servicePanel || !serviceToggle) return;
+    const shouldOpen = servicePanel.hidden;
+    servicePanel.hidden = !shouldOpen;
+    serviceToggle.setAttribute('aria-expanded', String(shouldOpen));
+  };
+
+  const appendSelectedServiceParams = (params) => {
+    getSelectedServices().forEach(({ code }) => params.append('type', code));
+    return params;
+  };
+
+  const replaceSelectOptions = (select, placeholder, values) => {
+    if (!select) return;
+    const options = [new Option(placeholder, '')];
+    values.forEach((value) => options.push(new Option(value, value)));
+    select.replaceChildren(...options);
+  };
+
+  const loadSigungus = async (sido) => {
+    replaceSelectOptions(sigunguSelect, '전체 시/군/구', []);
+    sigunguSelect.disabled = !sido;
+    if (!sido) return;
+
+    try {
+      const response = await api.get(`/stores/regions/sigungus?sido=${encodeURIComponent(sido)}`);
+      replaceSelectOptions(sigunguSelect, '전체 시/군/구', unwrap(response) || []);
+      sigunguSelect.disabled = false;
+    } catch (error) {
+      sigunguSelect.disabled = true;
+      setStatus(`시/군/구 목록 조회 실패: ${error.message}`, true);
+    }
+  };
+
+  const loadSidos = async () => {
+    if (!sidoSelect) return;
+    sidoSelect.disabled = true;
+    try {
+      const response = await api.get('/stores/regions/sidos');
+      replaceSelectOptions(sidoSelect, '전체 시/도', unwrap(response) || []);
+      sidoSelect.disabled = false;
+    } catch (error) {
+      setStatus(`시/도 목록 조회 실패: ${error.message}`, true);
+    }
+  };
+
   const clearMarkers = () => {
+    markerClusterer?.clear();
     markers.forEach(({ marker }) => marker.setMap(null));
     markers = [];
     infoWindow?.close();
@@ -124,7 +238,7 @@ export function setupStoreLocator() {
   };
 
   const createNumberedMarkerImage = (number) => {
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="48" viewBox="0 0 42 48"><path d="M21 1C10.5 1 2 9.3 2 19.6c0 13 19 27.4 19 27.4s19-14.4 19-27.4C40 9.3 31.5 1 21 1Z" fill="#17171a" stroke="white" stroke-width="2"/><circle cx="21" cy="19" r="12" fill="#17171a"/><text x="21" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="white">${number}</text></svg>`;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="42" height="48" viewBox="0 0 42 48"><path d="M21 1C10.5 1 2 9.3 2 19.6c0 13 19 27.4 19 27.4s19-14.4 19-27.4C40 9.3 31.5 1 21 1Z" fill="#1677FF" stroke="white" stroke-width="2"/><circle cx="21" cy="19" r="11.5" fill="white"/><text x="21" y="23" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="800" fill="#1677FF">${number}</text></svg>`;
     const source = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     return new maps.MarkerImage(
       source,
@@ -151,10 +265,10 @@ export function setupStoreLocator() {
     infoWindow.open(map, markerEntry.marker);
   };
 
-  const renderList = (nextStores) => {
+  const renderList = (nextStores, { total = nextStores.length, numberOffset = 0 } = {}) => {
     stores = nextStores;
     listElement.replaceChildren();
-    countElement.textContent = `${stores.length}곳`;
+    countElement.textContent = `${total}곳`;
 
     if (!stores.length) {
       const empty = document.createElement('p');
@@ -172,7 +286,7 @@ export function setupStoreLocator() {
 
       const number = document.createElement('span');
       number.className = 'store-list-number';
-      number.textContent = String(index + 1);
+      number.textContent = String(numberOffset + index + 1);
       const content = document.createElement('div');
       content.className = 'store-list-content';
       const titleRow = document.createElement('div');
@@ -209,13 +323,12 @@ export function setupStoreLocator() {
         badge.textContent = '영업시간 안내';
         badges.appendChild(badge);
       }
-      const selectedService = serviceTypeSelect?.selectedOptions?.[0];
-      if (selectedService?.value) {
+      getSelectedServices().forEach((selectedService) => {
         const badge = document.createElement('i');
         badge.className = 'accent';
-        badge.textContent = selectedService.textContent;
+        badge.textContent = selectedService.label;
         badges.appendChild(badge);
-      }
+      });
       content.append(titleRow, address);
       if (meta.childElementCount) content.appendChild(meta);
       if (badges.childElementCount) content.appendChild(badges);
@@ -229,21 +342,26 @@ export function setupStoreLocator() {
     });
   };
 
-  const renderMarkers = (nextStores) => {
+  const renderMarkers = (nextStores, { numberOffset = 0 } = {}) => {
     if (!map || !maps) return;
     clearMarkers();
 
     nextStores.forEach((store, index) => {
       const position = new maps.LatLng(store.latitude, store.longitude);
       const marker = new maps.Marker({
-        map,
         position,
         title: store.storeName,
-        image: createNumberedMarkerImage(index + 1),
+        image: createNumberedMarkerImage(numberOffset + index + 1),
       });
       maps.event.addListener(marker, 'click', () => selectStore(store, { moveMap: false }));
       markers.push({ storeId: store.storeId, marker });
     });
+
+    if (markerClusterer) {
+      markerClusterer.addMarkers(markers.map(({ marker }) => marker));
+    } else {
+      markers.forEach(({ marker }) => marker.setMap(map));
+    }
 
     if (selectedStoreId) {
       const selected = nextStores.find((store) => store.storeId === selectedStoreId);
@@ -251,45 +369,139 @@ export function setupStoreLocator() {
     }
   };
 
+  const createClusterMarkerImage = (count) => {
+    const fontSize = count >= 1_000 ? 10 : count >= 100 ? 11 : 13;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="25" fill="#1677FF" stroke="white" stroke-width="5"/><text x="28" y="33" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${count}</text></svg>`;
+    const source = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    return new maps.MarkerImage(
+      source,
+      new maps.Size(56, 56),
+      { offset: new maps.Point(28, 28) },
+    );
+  };
+
+  const renderPagination = (pageData) => {
+    if (!paginationElement || !pageInfoElement || !prevPageButton || !nextPageButton) return;
+    if (!pageData || pageData.totalPages <= 1) {
+      paginationElement.hidden = true;
+      return;
+    }
+
+    paginationElement.hidden = false;
+    pageInfoElement.textContent = `${pageData.page + 1} / ${pageData.totalPages}`;
+    prevPageButton.disabled = pageData.first;
+    nextPageButton.disabled = pageData.last;
+  };
+
+  const renderClusterSummary = (total) => {
+    stores = [];
+    selectedStoreId = null;
+    listElement.replaceChildren();
+    countElement.textContent = `${total}곳`;
+
+    const guide = document.createElement('p');
+    guide.className = 'store-list-empty';
+    guide.textContent = '파란 클러스터를 선택하거나 지도를 확대하면 개별 매장을 확인할 수 있습니다.';
+    listElement.appendChild(guide);
+  };
+
+  const renderServerClusters = (clusters) => {
+    if (!map || !maps) return;
+    clearMarkers();
+
+    clusters.forEach((cluster, index) => {
+      const marker = new maps.Marker({
+        map,
+        position: new maps.LatLng(cluster.latitude, cluster.longitude),
+        title: `매장 ${cluster.count}곳`,
+        image: createClusterMarkerImage(cluster.count),
+        zIndex: 10 + Math.min(cluster.count, 1_000),
+      });
+      maps.event.addListener(marker, 'click', () => {
+        map.setCenter(marker.getPosition());
+        map.setLevel(Math.max(1, map.getLevel() - 2));
+      });
+      markers.push({ storeId: `cluster-${index}`, marker });
+    });
+  };
+
   const loadStoresInView = async () => {
     if (!map || Date.now() < suppressViewportUntil) return;
 
-    const requestId = ++viewportRequestId;
     const bounds = map.getBounds();
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
+    const level = map.getLevel();
+    const params = new URLSearchParams({
+      swLat: clamp(sw.getLat(), KOREA_MAP_LIMIT.minLatitude, KOREA_MAP_LIMIT.maxLatitude).toFixed(6),
+      swLng: clamp(sw.getLng(), KOREA_MAP_LIMIT.minLongitude, KOREA_MAP_LIMIT.maxLongitude).toFixed(6),
+      neLat: clamp(ne.getLat(), KOREA_MAP_LIMIT.minLatitude, KOREA_MAP_LIMIT.maxLatitude).toFixed(6),
+      neLng: clamp(ne.getLng(), KOREA_MAP_LIMIT.minLongitude, KOREA_MAP_LIMIT.maxLongitude).toFixed(6),
+    });
+    appendSelectedServiceParams(params);
+    const requestKey = `${level}:${params.toString()}`;
+    if (requestKey === lastViewportRequestKey) return;
 
+    lastViewportRequestKey = requestKey;
+    viewportAbortController?.abort();
+    const requestController = new AbortController();
+    viewportAbortController = requestController;
+    const requestId = ++viewportRequestId;
     setStatus('현재 지도 영역의 매장을 찾고 있습니다.');
 
     try {
-      const params = new URLSearchParams({
-        swLat: String(sw.getLat()),
-        swLng: String(sw.getLng()),
-        neLat: String(ne.getLat()),
-        neLng: String(ne.getLng()),
-      });
-      const serviceType = serviceTypeSelect?.value.trim();
-      if (serviceType) params.set('type', serviceType);
-      const response = await api.get(`/stores/map?${params.toString()}`);
-      if (requestId !== viewportRequestId) return;
+      if (level >= SERVER_CLUSTER_MIN_LEVEL) {
+        params.set('level', String(level));
+        const response = await api.get(
+          `/stores/map/clusters?${params.toString()}`,
+          { signal: requestController.signal },
+        );
+        if (requestId !== viewportRequestId) return;
 
+        const clusters = unwrap(response) || [];
+        const total = clusters.reduce((sum, cluster) => sum + cluster.count, 0);
+        regionSearchActive = false;
+        renderPagination(null);
+        renderClusterSummary(total);
+        renderServerClusters(clusters);
+        setStatus(`현재 지도 영역의 매장 ${total}곳을 ${clusters.length}개 클러스터로 표시했습니다.`);
+        return;
+      }
+
+      const response = await api.get(
+        `/stores/map?${params.toString()}`,
+        { signal: requestController.signal },
+      );
       const nextStores = unwrap(response) || [];
-    const sortedStores = [...nextStores].sort((a, b) => {
-      const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Infinity;
-      const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Infinity;
-      return aDistance - bDistance;
-    });
-
-    renderList(sortedStores);
-    renderMarkers(sortedStores);
-      setStatus(`현재 지도 영역에서 매장 ${nextStores.length}곳을 찾았습니다.`);
-    } catch (error) {
       if (requestId !== viewportRequestId) return;
+
+      const sortedStores = [...nextStores].sort((a, b) => {
+        const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Infinity;
+        const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Infinity;
+        return aDistance - bDistance;
+      });
+
+      regionSearchActive = false;
+      renderPagination(null);
+      renderList(sortedStores.slice(0, MAP_LIST_LIMIT), { total: sortedStores.length });
+      renderMarkers(sortedStores);
+      const listNotice = sortedStores.length > MAP_LIST_LIMIT
+        ? ` 목록에는 ${MAP_LIST_LIMIT}곳만 표시합니다.`
+        : '';
+      setStatus(`현재 지도 영역에서 매장 ${nextStores.length}곳을 찾았습니다.${listNotice}`);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      if (requestId !== viewportRequestId) return;
+      lastViewportRequestKey = '';
       setStatus(`현재 지도 영역 매장 조회 실패: ${error.message}`, true);
+    } finally {
+      if (viewportAbortController === requestController) {
+        viewportAbortController = null;
+      }
     }
   };
 
-  const queueViewportLoad = (delay = 180) => {
+  const queueViewportLoad = (delay = VIEWPORT_REQUEST_DELAY) => {
     window.clearTimeout(viewportTimer);
     viewportTimer = window.setTimeout(loadStoresInView, delay);
   };
@@ -324,9 +536,32 @@ export function setupStoreLocator() {
           center: new maps.LatLng(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude),
           level: 3,
         });
+        map.setMinLevel(KOREA_MAP_LIMIT.minLevel);
+        map.setMaxLevel(KOREA_MAP_LIMIT.maxLevel);
+        map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT);
+        markerClusterer = new maps.MarkerClusterer({
+          map,
+          averageCenter: true,
+          minLevel: 7,
+          gridSize: 70,
+          styles: [{
+            width: '46px',
+            height: '46px',
+            border: '4px solid #fff',
+            borderRadius: '50%',
+            color: '#fff',
+            background: '#1677ff',
+            boxShadow: '0 7px 18px rgba(22,119,255,.3)',
+            fontSize: '12px',
+            fontWeight: '800',
+            lineHeight: '38px',
+            textAlign: 'center',
+          }],
+        });
         infoWindow = new maps.InfoWindow({ zIndex: 5 });
         maps.event.addListener(map, 'idle', () => {
           if (Date.now() < suppressViewportUntil) return;
+          if (keepMapInsideKorea()) return;
           queueViewportLoad();
         });
         maps.event.addListener(map, 'click', clearStoreSelection);
@@ -389,16 +624,20 @@ export function setupStoreLocator() {
     }
   };
 
-  const searchStoresByRegion = async () => {
+  const searchStoresByRegion = async (page = 0) => {
     const sido = sidoSelect?.value.trim() || '';
-    const sigungu = sigunguInput?.value.trim() || '';
-    const type = serviceTypeSelect?.value.trim() || '';
+    const sigungu = sigunguSelect?.value.trim() || '';
     const params = new URLSearchParams();
     if (sido) params.set('sido', sido);
     if (sigungu) params.set('sigungu', sigungu);
-    if (type) params.set('type', type);
+    params.set('page', String(page));
+    params.set('size', String(STORE_PAGE_SIZE));
+    appendSelectedServiceParams(params);
 
     window.clearTimeout(viewportTimer);
+    viewportAbortController?.abort();
+    viewportAbortController = null;
+    lastViewportRequestKey = '';
     viewportRequestId += 1;
     suppressViewportUntil = Date.now() + 800;
     regionSearchButton.disabled = true;
@@ -406,17 +645,24 @@ export function setupStoreLocator() {
 
     try {
       await ensureMap();
-      const query = params.toString();
-      const response = await api.get(query ? `/stores?${query}` : '/stores');
-      const nextStores = unwrap(response) || [];
+      const response = await api.get(`/stores?${params.toString()}`);
+      const pageData = unwrap(response);
+      const nextStores = pageData?.content || [];
+      currentRegionPage = pageData?.page || 0;
+      regionSearchActive = true;
       selectedStoreId = null;
-      renderList(nextStores);
-      renderMarkers(nextStores);
+      const numberOffset = currentRegionPage * STORE_PAGE_SIZE;
+      renderList(nextStores, { total: pageData?.totalElements || 0, numberOffset });
+      renderMarkers(nextStores, { numberOffset });
+      renderPagination(pageData);
       fitMapToStores(nextStores);
 
       const regionLabel = [sido, sigungu].filter(Boolean).join(' ') || '전체 지역';
-      const serviceLabel = serviceTypeSelect?.selectedOptions?.[0]?.textContent || '전체 서비스';
-      setStatus(`${regionLabel} · ${serviceLabel} 조건으로 매장 ${nextStores.length}곳을 찾았습니다.`);
+      const selectedServices = getSelectedServices();
+      const serviceLabel = selectedServices.length
+        ? selectedServices.map(({ label }) => label).join(' + ')
+        : '전체 서비스';
+      setStatus(`${regionLabel} · ${serviceLabel} 조건으로 매장 ${pageData?.totalElements || 0}곳을 찾았습니다.`);
     } catch (error) {
       setStatus(`지역별 매장 조회 실패: ${error.message}`, true);
     } finally {
@@ -453,9 +699,21 @@ export function setupStoreLocator() {
     if (event.key === 'Enter') searchLocation();
   });
   locationButton?.addEventListener('click', useCurrentLocation);
-  regionSearchButton?.addEventListener('click', searchStoresByRegion);
-  sigunguInput?.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') searchStoresByRegion();
+  regionSearchButton?.addEventListener('click', () => searchStoresByRegion(0));
+  prevPageButton?.addEventListener('click', () => {
+    if (regionSearchActive && currentRegionPage > 0) searchStoresByRegion(currentRegionPage - 1);
+  });
+  nextPageButton?.addEventListener('click', () => {
+    if (regionSearchActive) searchStoresByRegion(currentRegionPage + 1);
+  });
+  sidoSelect?.addEventListener('change', () => loadSigungus(sidoSelect.value));
+  serviceToggle?.addEventListener('click', toggleServicePanel);
+  serviceTypeInputs.forEach((input) => input.addEventListener('change', updateServiceSummary));
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.store-service-filter')) closeServicePanel();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeServicePanel();
   });
 
   document.addEventListener('ubot:route-change', (event) => {
@@ -467,6 +725,8 @@ export function setupStoreLocator() {
       }).catch(() => {});
     }, 80);
   });
+
+  loadSidos();
 
   if (document.body.dataset.route === 'stores') {
     ensureMap().catch(() => {});
