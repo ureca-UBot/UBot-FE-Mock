@@ -18,8 +18,55 @@ const state={
 
 const titles={home:"U봇",store:"스토어",product:"상품 상세",my:"MY",benefits:"혜택",network:"통신 상태",stores:"매장 찾기",ai:"AI 검색",admin:"운영"};
 
+const routePaths={
+  home:"",
+  store:"store",
+  product:"store/product",
+  my:"my",
+  benefits:"benefit",
+  network:"support",
+  stores:"support/store-address",
+  ai:"ai",
+  admin:"admin"
+};
+const pathAliases={
+  "":"home",
+  "store":"store",
+  "store/product":"product",
+  "my":"my",
+  "benefit":"benefits",
+  "benefits":"benefits",
+  "support":"network",
+  "network":"network",
+  "support/store-address":"stores",
+  "stores":"stores",
+  "ai":"ai",
+  "admin":"admin"
+};
+const appBase=(import.meta.env.BASE_URL||"/").replace(/\/?$/,"/");
+
+function routeUrl(route){
+  const path=routePaths[route]||"";
+  return path?`${appBase}${path}`:appBase;
+}
+
+function routeFromLocation(){
+  let path=window.location.pathname;
+  if(appBase!=="/"&&path.startsWith(appBase))path=path.slice(appBase.length);
+  else path=path.replace(/^\/+/,"");
+  path=path.replace(/\/+$/g,"");
+  return pathAliases[path]||"home";
+}
+
 const desktopHeader=$(".desktop-header");
-const syncHeader=()=>desktopHeader?.classList.toggle("scrolled",window.scrollY>28);
+const HEADER_SCROLL_ENTER=96;
+const HEADER_SCROLL_EXIT=16;
+const syncHeader=()=>{
+  if(!desktopHeader)return;
+  const isScrolled=desktopHeader.classList.contains("scrolled");
+  if(!isScrolled&&window.scrollY>HEADER_SCROLL_ENTER)desktopHeader.classList.add("scrolled");
+  else if(isScrolled&&window.scrollY<HEADER_SCROLL_EXIT)desktopHeader.classList.remove("scrolled");
+};
 syncHeader();
 window.addEventListener("scroll",syncHeader,{passive:true});
 
@@ -95,7 +142,7 @@ if("IntersectionObserver" in window){
   });
 }
 
-function go(route){
+function go(route,{replace=false,fromHistory=false}={}){
   if(!titles[route])return;
   $$(".route").forEach(p=>p.classList.toggle("active",p.dataset.page===route));
   $$(".gnb [data-route],.bottom-nav [data-route]").forEach(b=>{
@@ -104,8 +151,13 @@ function go(route){
     if(current)b.setAttribute("aria-current","page");else b.removeAttribute("aria-current");
   });
   document.body.dataset.route=route;
+  document.dispatchEvent(new CustomEvent("ubot:route-change",{detail:{route}}));
   document.title=`${titles[route]} · U봇 통신 생활 서비스`;
   $("#mobileTitle").textContent=titles[route]||"U봇";
+  if(!fromHistory){
+    const method=replace?"replaceState":"pushState";
+    window.history[method]({route},"",routeUrl(route));
+  }
   window.scrollTo({top:0,behavior:window.matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});
   if(route==="ai"&&window.pendingAiPrompt){setTimeout(()=>sendAi(window.pendingAiPrompt),180);window.pendingAiPrompt="";}
   if(route==="admin")refreshAdmin();
@@ -115,6 +167,7 @@ $$("[data-route]").forEach(b=>b.addEventListener("click",e=>{
   if(b.dataset.aiPrompt)window.pendingAiPrompt=b.dataset.aiPrompt;
   go(b.dataset.route);
 }));
+window.addEventListener("popstate",()=>go(routeFromLocation(),{fromHistory:true}));
 
 function toast(t){const el=$("#toast");el.textContent=t;el.classList.add("show");setTimeout(()=>el.classList.remove("show"),1900)}
 function esc(s=""){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
@@ -134,7 +187,8 @@ $("#loginSubmit").addEventListener("click",()=>{
   },120);
 });
 function updateLoginUI(){
-  $("#desktopLoginText").textContent=state.loggedIn?"김유저님":"로그인";
+  const desktopLoginText=$("#desktopLoginText");
+  if(desktopLoginText)desktopLoginText.textContent=state.loggedIn?"김유저님":"로그인";
   $("#aiSessionLabel").textContent=state.loggedIn?"김유저님 · 로그인 세션":"비회원 세션";
   $(".ai-session-state").classList.toggle("member",state.loggedIn);
   $("#rightLoginState").textContent=state.loggedIn?"로그인 완료":"비회원";
@@ -156,6 +210,9 @@ $$(".stores-list>button[data-store]").forEach(b=>b.addEventListener("click",()=>
   $$(".stores-list>button[data-store]").forEach(x=>x.classList.remove("active"));
   b.classList.add("active");state.selectedStore=b.dataset.store;
 }));
+document.addEventListener("ubot:store-selected",e=>{
+  if(e.detail?.name)state.selectedStore=e.detail.name;
+});
 $(".reserve-main").addEventListener("click",()=>{ $("#reserveStoreName").textContent=state.selectedStore; reserveDialog.showModal(); });
 $("#reserveSubmit").addEventListener("click",()=>setTimeout(()=>toast("방문 예약 완료 · 예약 확인 알림이 발송됐어요. (Mock)"),100));
 $("#reportOpen").addEventListener("click",()=>toast("통신 불편 제보가 접수되었습니다. (Mock)"));
@@ -324,7 +381,7 @@ $$("[data-demo]").forEach(b=>b.addEventListener("click",async()=>{
   if(n==="10"){go("admin")}
 }));
 
-updateLoginUI();refreshAdmin();go("home");
+updateLoginUI();refreshAdmin();go(routeFromLocation(),{replace:true});
 
 }
 

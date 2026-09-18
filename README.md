@@ -47,6 +47,7 @@ copy .env.example .env.local
 ```env
 VITE_API_BASE_URL=/api
 VITE_API_PROXY_TARGET=http://localhost:8080
+VITE_KAKAO_JAVASCRIPT_KEY=카카오_JavaScript_키
 ```
 
 프론트에서는 `src/api/client.js`의 공통 API client를 사용합니다.
@@ -59,6 +60,10 @@ const result = await api.post('/login', { id: 'user', password: 'pw' });
 ```
 
 개발 중 `/api/...` 요청은 Vite가 각자의 `VITE_API_PROXY_TARGET`으로 전달하므로, 기본적인 로컬 개발에서는 Spring 쪽 CORS 설정 없이도 사용할 수 있습니다. `.env.local`을 바꾼 뒤에는 `npm run dev`를 다시 시작해야 합니다.
+
+매장 찾기 화면은 Spring의 `/locations/search`, `/stores/nearby` API와 Kakao Maps JavaScript SDK를 사용합니다. `KAKAO_REST_API_KEY`는 백엔드에만 유지하고, 프론트에는 Kakao Developers에서 발급한 JavaScript 키만 `VITE_KAKAO_JAVASCRIPT_KEY`로 설정합니다.
+
+GitHub Pages에서도 지도를 띄우려면 Repository Settings의 Actions secret에 `VITE_KAKAO_JAVASCRIPT_KEY`, Actions variable에 배포된 백엔드의 HTTPS 주소를 `VITE_API_BASE_URL`로 등록합니다. Kakao Developers의 JavaScript SDK 허용 도메인에도 `https://ureca-ubot.github.io`를 등록해야 합니다.
 
 프로덕션 빌드 확인:
 
