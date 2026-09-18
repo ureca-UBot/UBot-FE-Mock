@@ -73,7 +73,7 @@ npm run build
 
 또는
 
-`https://ureca-final-project-temp.github.io/UBot-FE-Mock/`
+`https://ureca-ubot.github.io/UBot-FE-Mock/`
 
 모바일은 Chrome DevTools에서 360x616 또는 Android/iPhone viewport로 확인하면 됩니다.
 
