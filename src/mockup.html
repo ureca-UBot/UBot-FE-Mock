@@ -9,7 +9,7 @@
           <a class="utility-brand" href="#" data-route="home" aria-label="U봇 홈"><img src="./assets/image/ubot-logo.png" alt="U봇"></a>
         </div>
         <div class="utility-right">
-          <button class="on" data-route="home">개인</button><button data-route="stores">매장</button><button data-route="network">고객지원</button><button id="demoOpen">시연</button>
+          <button class="on" data-route="home">개인</button><button data-route="stores">매장</button><button data-route="network">고객지원</button><button data-route="admin">관리자</button><button id="demoOpen">시연</button>
         </div>
       </div>
     </div>
@@ -79,7 +79,7 @@
   <!-- Mobile header -->
   <header class="mobile-header">
     <div class="mobile-title-wrap"><img class="mobile-brand-logo" src="./assets/image/ubot-logo.png" alt=""><strong class="mobile-brand-name">U봇</strong><span id="mobileTitle" class="sr-only-title">U봇</span></div>
-    <div class="mobile-actions"><button class="mobile-icon-btn notification-btn" aria-label="알림"><span aria-hidden="true"></span></button><button id="mobileDemoOpen" class="mobile-icon-btn mobile-more-btn" aria-label="시연 메뉴">•••</button></div>
+    <div class="mobile-actions"><button class="mobile-admin-entry" data-route="admin">관리자</button><button class="mobile-icon-btn notification-btn" aria-label="알림"><span aria-hidden="true"></span></button><button id="mobileDemoOpen" class="mobile-icon-btn mobile-more-btn" aria-label="시연 메뉴">•••</button></div>
   </header>
 
   <main>
@@ -480,8 +480,13 @@
 
     <!-- ADMIN -->
     <section class="route admin-route" data-page="admin">
-      <div class="admin-head"><div><span>OPERATIONS</span><h1>AI 상담 운영 대시보드</h1><p>1~9번 시연에서 발생한 질문·캐시·미응답·지연 지표를 확인합니다.</p></div><button data-route="home">서비스 화면으로</button></div>
+      <div class="admin-head"><div><span>OPERATIONS</span><h1 id="adminPageTitle">AI 상담 운영 대시보드</h1><p id="adminPageDescription">1~9번 시연에서 발생한 질문·캐시·미응답·지연 지표를 확인합니다.</p></div><button data-route="home">서비스 화면으로</button></div>
       <div class="admin-wrap">
+        <div class="admin-tabs" role="tablist" aria-label="관리자 메뉴">
+          <button class="active" type="button" role="tab" aria-selected="true" data-admin-tab="operations">운영 대시보드</button>
+          <button type="button" role="tab" aria-selected="false" data-admin-tab="stores">매장 관리</button>
+        </div>
+        <div data-admin-panel="operations">
         <div class="kpi-grid">
           <article><span>오늘 질문</span><b id="kpiQuestions">1,284</b><small>어제 대비 +12.4%</small></article>
           <article><span>캐시 히트율</span><b id="kpiCache">41.8%</b><small id="cacheDelta">+3.2%p</small></article>
@@ -523,6 +528,27 @@
             <div class="cache-table"><div class="row head"><span>질문</span><span>유형</span><span>시간</span></div><div class="row"><span>5G플랜 종류 알려줘</span><b>SEMANTIC HIT</b><em>120ms</em></div><div class="row"><span>납부방법 변경</span><b>CANONICAL</b><em>84ms</em></div><div class="row"><span>인터넷 이전 설치</span><b>SEMANTIC HIT</b><em>146ms</em></div></div>
           </section>
         </div>
+        </div>
+
+        <section class="admin-store-view hidden" data-admin-panel="stores" aria-labelledby="adminStoreTitle">
+          <div class="admin-store-toolbar">
+            <div><small>STORE MANAGEMENT</small><h2 id="adminStoreTitle">매장 관리</h2><p>등록된 매장 정보를 확인하고 신규 등록, 수정, 삭제할 수 있습니다.</p></div>
+            <button class="admin-store-create" id="adminStoreCreate" type="button">매장 등록</button>
+          </div>
+          <div class="admin-store-notice" id="adminStoreNotice" role="status">매장 정보를 불러오고 있습니다.</div>
+          <div class="admin-store-table-wrap">
+            <table class="admin-store-table">
+              <thead><tr><th>매장</th><th>지역</th><th>연락처</th><th>영업시간</th><th><span class="sr-only-title">관리</span></th></tr></thead>
+              <tbody id="adminStoreRows"></tbody>
+            </table>
+          </div>
+          <div class="admin-store-empty hidden" id="adminStoreEmpty">조회된 매장이 없습니다.</div>
+          <div class="admin-store-pagination">
+            <button id="adminStorePrev" type="button">이전</button>
+            <span id="adminStorePageInfo">1 / 1</span>
+            <button id="adminStoreNext" type="button">다음</button>
+          </div>
+        </section>
       </div>
     </section>
   </main>
@@ -578,6 +604,31 @@
     <div class="modal-head"><div><small>결합 변경</small><h3>인터넷 결합으로 변경할까요?</h3></div><button value="cancel">×</button></div>
     <div class="bundle-preview"><span>현재</span><b>5G 스탠다드</b><i>＋</i><span>추가</span><b>기가 인터넷 500M</b><p>시연용 예상 할인: 월 11,000원</p></div>
     <button id="bundleSubmit" class="black-btn modal-full" value="default">변경 완료</button>
+  </form>
+</dialog>
+
+<!-- Admin store form -->
+<dialog class="modal admin-store-dialog" id="adminStoreDialog">
+  <form id="adminStoreForm" autocomplete="off">
+    <div class="modal-head"><div><small>STORE MANAGEMENT</small><h3 id="adminStoreFormTitle">매장 등록</h3></div><button id="adminStoreDialogClose" type="button" aria-label="닫기">×</button></div>
+    <input id="adminStoreId" type="hidden">
+    <div class="admin-store-form-grid">
+      <label class="admin-store-form-wide"><span>매장명</span><input id="adminStoreName" name="storeName" maxlength="150" required></label>
+      <label><span>시/도</span><input id="adminStoreSido" name="sido" maxlength="50" readonly required></label>
+      <label><span>시/군/구</span><input id="adminStoreSigungu" name="sigungu" maxlength="50" readonly required></label>
+      <label class="admin-store-form-wide"><span>주소</span><div class="admin-address-field"><input id="adminStoreAddress" name="address" maxlength="500" readonly required><button id="adminStoreAddressSearch" type="button">주소 검색</button></div></label>
+      <label><span>위도</span><input id="adminStoreLatitude" name="latitude" type="number" min="33" max="39" step="any" readonly required></label>
+      <label><span>경도</span><input id="adminStoreLongitude" name="longitude" type="number" min="124" max="132" step="any" readonly required></label>
+      <label><span>전화번호</span><input id="adminStorePhone" name="storePhoneNumber" maxlength="30" autocomplete="off" placeholder="02-1234-5678"></label>
+      <label><span>영업시간</span><input id="adminStoreHours" name="businessHours" placeholder="10:00-19:00"></label>
+      <fieldset class="admin-service-options admin-store-form-wide"><legend>제공 서비스</legend>
+        <label><input type="checkbox" name="adminServiceCode" value="IDENTITY_THEFT_REPORT"><span>명의도용 접수</span></label>
+        <label><input type="checkbox" name="adminServiceCode" value="APPLE_AS"><span>애플 A/S</span></label>
+        <label><input type="checkbox" name="adminServiceCode" value="FOREIGN_LANGUAGE_SUPPORT"><span>외국어 지원</span></label>
+      </fieldset>
+    </div>
+    <p class="admin-store-form-message" id="adminStoreFormMessage" role="alert"></p>
+    <button class="black-btn modal-full" id="adminStoreSubmit" type="submit">등록하기</button>
   </form>
 </dialog>
 

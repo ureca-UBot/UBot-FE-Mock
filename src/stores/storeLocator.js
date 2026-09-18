@@ -39,8 +39,8 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
-function loadKakaoMaps() {
-  if (window.kakao?.maps) {
+export function loadKakaoMaps() {
+  if (window.kakao?.maps?.services && window.kakao?.maps?.MarkerClusterer) {
     return new Promise((resolve) => window.kakao.maps.load(() => resolve(window.kakao.maps)));
   }
 
@@ -72,7 +72,7 @@ function loadKakaoMaps() {
 
     script.dataset.ubotKakaoMap = '1';
     script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=clusterer`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=clusterer,services`;
     script.addEventListener('load', onReady, { once: true });
     script.addEventListener('error', () => reject(new Error('카카오 지도 SDK 로드에 실패했습니다.')), { once: true });
     document.head.appendChild(script);

@@ -231,6 +231,76 @@ img{max-width:100%}.hidden{display:none!important}.mobile-only,.mobile-header{di
 @media(max-width:420px){.mobile-home{padding-right:16px;padding-left:16px}.mobile-guest-card{align-items:flex-start}.mobile-guest-card b{max-width:205px}.mobile-shortcuts span{width:44px;height:44px}.phone-product{grid-template-columns:110px minmax(0,1fr);padding:16px;gap:12px}.phone-art{width:110px;transform:scale(.9)}.kpi-grid{grid-template-columns:1fr}.score-line{align-items:flex-start;flex-direction:column;gap:3px}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
+/* Admin store management */
+.admin-tabs{display:flex;width:fit-content;padding:4px;margin-bottom:16px;border:1px solid #dedfe3;border-radius:13px;background:#fff;gap:3px}
+.admin-tabs button{min-height:38px;padding:0 17px;border:0;border-radius:9px;color:var(--muted);background:transparent;font-size:13px;font-weight:750}
+.admin-tabs button.active{color:#fff;background:var(--ink);box-shadow:0 5px 14px rgba(22,22,25,.15)}
+.admin-store-view{border:1px solid #dfe0e4;border-radius:20px;background:#fff;box-shadow:0 8px 28px rgba(30,31,35,.04)}
+.admin-store-toolbar{display:flex;align-items:flex-end;justify-content:space-between;padding:24px 25px 20px;border-bottom:1px solid var(--line);gap:20px}
+.admin-store-toolbar small{color:var(--subtle);font-size:11px;letter-spacing:.12em}
+.admin-store-toolbar h2{margin:5px 0 6px;font-size:23px;letter-spacing:-.03em}
+.admin-store-toolbar p{margin:0;color:var(--muted);font-size:13px}
+.admin-store-create{min-height:43px;padding:0 18px;border:0;border-radius:11px;color:#fff;background:var(--ink);font-size:13px;font-weight:800;white-space:nowrap}
+.admin-store-notice{padding:11px 25px;border-bottom:1px solid var(--line);color:var(--muted);background:#fafafb;font-size:12px}
+.admin-store-notice[data-type="success"]{color:#176b4c;background:#f1faf6}
+.admin-store-notice[data-type="error"]{color:#b63b3b;background:#fff5f5}
+.admin-store-table-wrap{overflow-x:auto}
+.admin-store-table{width:100%;border-collapse:collapse;text-align:left}
+.admin-store-table th{padding:13px 15px;color:var(--subtle);background:#fafafb;font-size:11px;font-weight:750;white-space:nowrap}
+.admin-store-table th:first-child,.admin-store-table td:first-child{padding-left:25px}
+.admin-store-table th:last-child,.admin-store-table td:last-child{padding-right:25px}
+.admin-store-table td{padding:15px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;vertical-align:middle}
+.admin-store-table td:first-child{min-width:280px}
+.admin-store-table td strong,.admin-store-table td small{display:block}
+.admin-store-table td strong{color:var(--ink);font-size:13px}
+.admin-store-table td small{max-width:420px;margin-top:5px;color:var(--subtle);line-height:1.45}
+.admin-store-actions{display:flex;justify-content:flex-end;gap:6px;white-space:nowrap}
+.admin-store-actions button{min-height:34px;padding:0 11px;border:1px solid #d7d8dc;border-radius:8px;background:#fff;font-size:11px;font-weight:750}
+.admin-store-actions button.danger{color:#b33939;border-color:#efd0d0;background:#fff8f8}
+.admin-store-empty{padding:60px 20px;color:var(--subtle);text-align:center;font-size:13px}
+.admin-store-pagination{display:flex;align-items:center;justify-content:center;padding:17px;border-top:1px solid var(--line);gap:13px}
+.admin-store-pagination button{min-width:58px;min-height:34px;border:1px solid #d9dade;border-radius:8px;background:#fff;font-size:11px}
+.admin-store-pagination button:disabled{opacity:.4}
+.admin-store-pagination span{min-width:52px;color:var(--muted);font-size:12px;text-align:center}
+.admin-store-dialog{width:min(680px,calc(100vw - 28px));max-height:min(820px,calc(100vh - 30px));overflow:auto}
+.admin-store-dialog form{padding:25px}
+.admin-store-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:12px}
+.admin-store-form-wide{grid-column:1/-1}
+.admin-address-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px}
+.modal .admin-address-field input{min-width:0}
+.admin-address-field button{padding:0 14px;border:1px solid #cfd0d5;border-radius:10px;background:#f7f7f8;font-size:12px;font-weight:750;white-space:nowrap}
+.admin-store-dialog input[readonly]{color:#55575e;background:#f5f5f7;cursor:default}
+.admin-service-options{display:flex;flex-wrap:wrap;padding:0;margin:14px 0 7px;border:0;gap:8px}
+.admin-service-options legend{width:100%;margin-bottom:7px;font-size:13px;font-weight:700}
+.admin-service-options label{display:flex;align-items:center;padding:10px 12px;margin:0;border:1px solid #dadbe0;border-radius:10px;background:#fff;cursor:pointer;gap:7px}
+.modal .admin-service-options input{width:16px;height:16px;padding:0;margin:0;accent-color:var(--pink)}
+.admin-service-options span{font-size:12px;font-weight:650}
+.admin-store-form-message{min-height:18px;margin:7px 0;color:#bd3434;font-size:12px}
+.admin-store-form-message.success{color:#176b4c}
+.mobile-admin-entry{display:none}
+
+@media(max-width:767px){
+  .mobile-admin-entry{display:block;height:32px;padding:0 10px;border:1px solid #dedfe3;border-radius:999px;color:#55575d;background:#fff;font-size:11px;font-weight:800}
+  .admin-tabs{width:100%;margin-bottom:12px}
+  .admin-tabs button{flex:1;padding:0 8px}
+  .admin-store-view{border-radius:16px}
+  .admin-store-toolbar{align-items:flex-start;padding:19px 16px;flex-direction:column}
+  .admin-store-toolbar h2{font-size:20px}
+  .admin-store-create{width:100%}
+  .admin-store-notice{padding:10px 16px}
+  .admin-store-table,.admin-store-table tbody,.admin-store-table tr,.admin-store-table td{display:block}
+  .admin-store-table thead{display:none}
+  .admin-store-table tr{position:relative;padding:17px 16px;border-top:1px solid var(--line)}
+  .admin-store-table td,.admin-store-table td:first-child,.admin-store-table td:last-child{min-width:0;padding:3px 0;border:0}
+  .admin-store-table td:first-child{padding-right:100px}
+  .admin-store-table td:nth-child(2),.admin-store-table td:nth-child(3),.admin-store-table td:nth-child(4){font-size:11px}
+  .admin-store-actions{position:absolute;top:15px;right:16px}
+  .admin-store-form-grid{display:block}
+  .admin-store-dialog form{padding:20px}
+  .admin-address-field{grid-template-columns:1fr}
+  .admin-address-field button{min-height:40px}
+}
+
 /* Telecom-style desktop header */
 @media(min-width:768px){
   .desktop-header{background:rgba(255,255,255,.98);backdrop-filter:blur(20px)}
