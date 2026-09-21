@@ -15,6 +15,16 @@ const KOREA_BOUNDS = {
   maxLongitude: 132,
 };
 
+function adminErrorMessage(error) {
+  if (error.status === 401) return '로그인이 필요합니다.';
+  if (error.status === 403) return '관리자 권한이 필요합니다.';
+  if (error.code === 'STORE-002' || error.code === 'DUPLICATE_STORE') return '이미 등록된 매장입니다.';
+  if (error.code === 'STORE-003') {
+    return '삭제된 동일 매장이 있습니다. 삭제 매장 복구 기능을 이용해 주세요.';
+  }
+  return error.message || '요청을 처리하지 못했습니다.';
+}
+
 let postcodePromise;
 
 function loadDaumPostcode() {
@@ -190,7 +200,7 @@ export function setupAdminStoreManagement() {
       setNotice(`활성 매장 ${Number(pageData?.totalElements || 0).toLocaleString()}곳`, 'success');
     } catch (error) {
       renderRows([]);
-      setNotice(`매장 목록을 불러오지 못했습니다. ${error.message}`, 'error');
+      setNotice(`매장 목록을 불러오지 못했습니다. ${adminErrorMessage(error)}`, 'error');
     }
   };
 
@@ -263,7 +273,7 @@ export function setupAdminStoreManagement() {
       });
       setNotice('매장 상세 정보를 불러왔습니다.', 'success');
     } catch (error) {
-      setNotice(`매장 상세 정보를 불러오지 못했습니다. ${error.message}`, 'error');
+      setNotice(`매장 상세 정보를 불러오지 못했습니다. ${adminErrorMessage(error)}`, 'error');
     } finally {
       submitButton.disabled = false;
     }
@@ -351,7 +361,7 @@ export function setupAdminStoreManagement() {
       await loadStores(currentPage);
       showSuccess('매장이 삭제되었습니다.');
     } catch (error) {
-      setNotice(`매장을 삭제하지 못했습니다. ${error.message}`, 'error');
+      setNotice(`매장을 삭제하지 못했습니다. ${adminErrorMessage(error)}`, 'error');
       button.disabled = false;
     }
   });
@@ -371,10 +381,7 @@ export function setupAdminStoreManagement() {
       await loadStores(storeId ? currentPage : 0);
       showSuccess(storeId ? '매장 정보가 수정되었습니다.' : '새 매장이 등록되었습니다.');
     } catch (error) {
-      const message = error.code === 'DUPLICATE_STORE' || error.status === 409
-        ? '이미 등록된 매장입니다.'
-        : error.message;
-      setFormMessage(message);
+      setFormMessage(adminErrorMessage(error));
     } finally {
       submitButton.disabled = false;
       submitButton.textContent = storeId ? '수정 내용 저장' : '등록하기';

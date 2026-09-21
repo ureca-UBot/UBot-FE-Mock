@@ -1,3 +1,5 @@
+import { getAccessToken } from '../auth/tokenStorage.js';
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 
 export class ApiError extends Error {
@@ -12,10 +14,12 @@ export class ApiError extends Error {
 
 export async function apiRequest(path, options = {}) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const accessToken = getAccessToken();
   const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...options.headers,
     },
   });

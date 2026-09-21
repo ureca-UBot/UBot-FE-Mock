@@ -1,8 +1,11 @@
-import { api } from './client.js';
+import { api, ApiError } from './client.js';
 
 function unwrap(response) {
   if (response?.success === false) {
-    throw new Error(response.message || 'API 요청에 실패했습니다.');
+    throw new ApiError(response.message || 'API 요청에 실패했습니다.', {
+      code: response.code,
+      data: response.data,
+    });
   }
   return response?.data ?? response;
 }
@@ -26,4 +29,8 @@ export async function updateAdminStore(storeId, payload) {
 
 export function deleteAdminStore(storeId) {
   return api.delete(`/admin/stores/${storeId}`);
+}
+
+export async function activateAdminStore(storeId) {
+  return unwrap(await api.patch(`/admin/stores/${storeId}/activate`));
 }

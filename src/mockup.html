@@ -567,12 +567,13 @@
 
 <!-- Login modal -->
 <dialog class="modal login-modal" id="loginDialog">
-  <form method="dialog">
-    <div class="modal-head"><div><small>U봇 LOGIN</small><h3>로그인하고 이어서 상담할까요?</h3></div><button value="cancel">×</button></div>
+  <form id="loginForm">
+    <div class="modal-head"><div><small>U봇 LOGIN</small><h3>로그인하고 이어서 상담할까요?</h3></div><button id="loginClose" type="button" aria-label="로그인 창 닫기">×</button></div>
     <p class="modal-desc">비회원으로 나눈 대화는 그대로 유지됩니다.</p>
-    <label><span>휴대폰 번호</span><input value="010-5555-2121" /></label>
-    <label><span>간편 인증</span><input value="••••••" type="password" /></label>
-    <button id="loginSubmit" class="black-btn modal-full" value="default">간편 로그인</button>
+    <label><span>이메일</span><input id="loginEmail" type="email" autocomplete="username" placeholder="이메일을 입력해 주세요" required /></label>
+    <label><span>비밀번호</span><input id="loginPassword" type="password" autocomplete="current-password" placeholder="비밀번호를 입력해 주세요" required /></label>
+    <p class="admin-store-form-message" id="loginMessage" role="alert"></p>
+    <button id="loginSubmit" class="black-btn modal-full" type="submit">로그인</button>
   </form>
 </dialog>
 

@@ -1,14 +1,17 @@
+import { loginUser } from '../api/auth.js';
+import { hasAccessToken } from '../auth/tokenStorage.js';
+
 export function setupMock() {
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 
 const state={
-  loggedIn:false,
+  loggedIn:hasAccessToken(),
   faqSatellite:false,
   cachePrimed:false,
   cacheHit:false,
   failNext:false,
   selectedStore:"U봇 강남직영점",
-  threadId:"GUEST-8F21",
+  threadId:hasAccessToken()?"MEMBER-SESSION":"GUEST-8F21",
   messages:[],
   pendingAfterLogin:null,
   lastUserIntent:null,
@@ -174,17 +177,34 @@ function esc(s=""){return s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
 
 const loginDialog=$("#loginDialog"), faqDialog=$("#faqDialog"), reserveDialog=$("#reserveDialog"), bundleDialog=$("#bundleDialog"), demoDialog=$("#demoDialog");
+const loginForm=$("#loginForm"), loginMessage=$("#loginMessage"), loginSubmit=$("#loginSubmit");
 
-$$(".open-login").forEach(b=>b.addEventListener("click",()=>loginDialog.showModal()));
-$("#loginSubmit").addEventListener("click",()=>{
-  state.loggedIn=true;
-  state.threadId="MEMBER-21A7";
-  updateLoginUI();
-  setTimeout(()=>{
+$$(".open-login").forEach(b=>b.addEventListener("click",()=>{
+  loginMessage.textContent="";
+  loginDialog.showModal();
+}));
+$("#loginClose").addEventListener("click",()=>loginDialog.close());
+loginForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(!loginForm.reportValidity())return;
+  loginMessage.textContent="";
+  loginSubmit.disabled=true;
+  loginSubmit.textContent="로그인 중…";
+  try{
+    await loginUser($("#loginEmail").value.trim(),$("#loginPassword").value);
+    state.loggedIn=true;
+    state.threadId="MEMBER-SESSION";
+    updateLoginUI();
+    loginDialog.close();
     toast("로그인 완료 · 비회원 대화가 이어졌어요.");
     go("ai");
     if(state.pendingAfterLogin){const q=state.pendingAfterLogin;state.pendingAfterLogin=null;setTimeout(()=>sendAi(q,{resume:true}),260)}
-  },120);
+  }catch(error){
+    loginMessage.textContent=error.message||"로그인에 실패했습니다.";
+  }finally{
+    loginSubmit.disabled=false;
+    loginSubmit.textContent="로그인";
+  }
 });
 function updateLoginUI(){
   const desktopLoginText=$("#desktopLoginText");
