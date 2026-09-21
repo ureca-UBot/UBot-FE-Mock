@@ -12,11 +12,11 @@ function unwrap(response) {
 
 export async function getAdminStorePage(page = 0, size = 20) {
   const params = new URLSearchParams({ page: String(page), size: String(size) });
-  return unwrap(await api.get(`/stores?${params.toString()}`));
+  return unwrap(await api.get(`/stores?${params.toString()}`, { skipAuth: true }));
 }
 
 export async function getAdminStoreDetail(storeId) {
-  return unwrap(await api.get(`/stores/${storeId}`));
+  return unwrap(await api.get(`/stores/${storeId}`, { skipAuth: true }));
 }
 
 export async function createAdminStore(payload) {

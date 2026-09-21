@@ -14,13 +14,17 @@ export class ApiError extends Error {
 
 export async function apiRequest(path, options = {}) {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const accessToken = getAccessToken();
+  const {
+    skipAuth = false,
+    ...fetchOptions
+  } = options;
+  const accessToken = skipAuth ? null : getAccessToken();
   const response = await fetch(`${API_BASE_URL}${normalizedPath}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...options.headers,
+      ...fetchOptions.headers,
     },
   });
 

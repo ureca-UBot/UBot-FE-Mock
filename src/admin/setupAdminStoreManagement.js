@@ -20,7 +20,7 @@ function adminErrorMessage(error) {
   if (error.status === 403) return '관리자 권한이 필요합니다.';
   if (error.code === 'STORE-002' || error.code === 'DUPLICATE_STORE') return '이미 등록된 매장입니다.';
   if (error.code === 'STORE-003') {
-    return '삭제된 동일 매장이 있습니다. 삭제 매장 복구 기능을 이용해 주세요.';
+    return '삭제된 동일 매장이 존재합니다. 기존 매장 복구가 필요합니다.';
   }
   return error.message || '요청을 처리하지 못했습니다.';
 }

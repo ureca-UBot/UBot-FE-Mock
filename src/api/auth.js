@@ -12,7 +12,7 @@ function unwrap(response) {
 }
 
 export async function loginUser(email, password) {
-  const tokens = unwrap(await api.post('/auth/login', { email, password }));
+  const tokens = unwrap(await api.post('/auth/login', { email, password }, { skipAuth: true }));
   saveAuthTokens(tokens);
   return tokens;
 }
