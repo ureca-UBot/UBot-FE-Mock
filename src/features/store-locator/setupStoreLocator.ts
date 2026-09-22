@@ -33,7 +33,7 @@ const KOREA_MAP_LIMIT = {
 
 const STORE_PAGE_SIZE = 20;
 const MAP_LIST_LIMIT = 50;
-const SERVER_CLUSTER_MIN_LEVEL = 7;
+const SERVER_CLUSTER_MIN_LEVEL = 8;
 const INDIVIDUAL_MARKER_MAX_LEVEL = SERVER_CLUSTER_MIN_LEVEL - 1;
 
 function formatDistance(distanceKm?: number) {
@@ -104,6 +104,7 @@ export function setupStoreLocator(): () => void {
   let currentRegionPage = 0;
   let regionSearchActive = false;
   let disposed = false;
+  let renderedMapMode: 'clusters' | 'stores' | null = null;
   let routeTimerId: number | undefined;
   let clusterFrameId: number | undefined;
   let mapInitFrameId: number | undefined;
@@ -365,9 +366,13 @@ export function setupStoreLocator(): () => void {
     }
   };
 
-  const getClusterMarkerSize = (count: number) => (
-    clamp(Math.round(40 + Math.sqrt(Math.max(0, count - 1)) * 4), 40, 70)
-  );
+  const getClusterMarkerSize = (count: number) => {
+    if (count <= 1) return 20;
+    if (count <= 9) return 30;
+    if (count <= 49) return 36;
+    if (count <= 99) return 42;
+    return 48;
+  };
 
   const createClusterMarkerImage = (count: number) => {
     if (!maps) throw new Error('카카오 지도가 준비되지 않았습니다.');
@@ -376,7 +381,34 @@ export function setupStoreLocator(): () => void {
     const radius = center - 3;
     const fontSize = clamp(Math.round(size * (count >= 1_000 ? 0.2 : 0.25)), 11, 16);
     const textY = center + fontSize * 0.35;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${center}" cy="${center}" r="${radius}" fill="#1677FF" stroke="white" stroke-width="5"/><text x="${center}" y="${textY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${count}</text></svg>`;
+    const label = count > 1
+      ? `<text
+          x="${center}"
+          y="${textY}"
+          text-anchor="middle"
+          font-family="Arial, sans-serif"
+          font-size="${fontSize}"
+          font-weight="800"
+          fill="white"
+        >${count}</text>`
+      : '';
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg"
+            width="${size}"
+            height="${size}"
+            viewBox="0 0 ${size} ${size}">
+          <circle
+            cx="${center}"
+            cy="${center}"
+            r="${radius}"
+            fill="#1677FF"
+            stroke="white"
+            stroke-width="3"
+          />
+          ${label}
+        </svg>
+      `;
+      //const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${center}" cy="${center}" r="${radius}" fill="#1677FF" stroke="white" stroke-width="5"/><text x="${center}" y="${textY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${count}</text></svg>`;
     const source = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     return new maps.MarkerImage(
       source,
@@ -433,16 +465,18 @@ export function setupStoreLocator(): () => void {
           currentMaps.event.removeListener(currentMap, 'idle', searchAfterMove);
           pendingClusterSearchHandler = null;
           clusterFrameId = window.requestAnimationFrame(() => {
-            void loadStoresInView({ forceIndividual: true });
+            void loadStoresInView();
           });
         };
         pendingClusterSearchHandler = searchAfterMove;
         currentMaps.event.addListener(currentMap, 'idle', searchAfterMove);
         suppressViewportUntil = Date.now() + 800;
-        currentMap.setLevel(Math.max(
+        const nextLevel = Math.max(
           KOREA_MAP_LIMIT.minLevel,
-          Math.min(currentMap.getLevel() - 2, INDIVIDUAL_MARKER_MAX_LEVEL),
-        ));
+          currentMap.getLevel() - 2,
+        );
+
+        currentMap.setLevel(nextLevel);
         currentMap.setCenter(marker.getPosition());
       };
       currentMaps.event.addListener(marker, 'click', clickHandler);
@@ -493,6 +527,7 @@ export function setupStoreLocator(): () => void {
         renderPagination(null);
         renderClusterSummary(total);
         const displayedClusterCount = renderServerClusters(clusters);
+        renderedMapMode = 'clusters';
         setStatus(`현재 지도 영역의 매장 ${total}곳을 ${displayedClusterCount}개 클러스터로 표시했습니다.`);
         return;
       }
@@ -514,6 +549,7 @@ export function setupStoreLocator(): () => void {
       renderPagination(null);
       renderList(sortedStores.slice(0, MAP_LIST_LIMIT), { total: sortedStores.length });
       renderMarkers(sortedStores);
+      renderedMapMode = 'stores';
       const listNotice = sortedStores.length > MAP_LIST_LIMIT
         ? ` 목록에는 ${MAP_LIST_LIMIT}곳만 표시합니다.`
         : '';
@@ -572,6 +608,19 @@ export function setupStoreLocator(): () => void {
         mapIdleHandler = () => {
           if (Date.now() < suppressViewportUntil) return;
           if (keepMapInsideKorea()) return;
+
+          const nextMode =
+            createdMap.getLevel() >= SERVER_CLUSTER_MIN_LEVEL
+              ? 'clusters'
+              : 'stores';
+
+          if (renderedMapMode === 'clusters' && nextMode === 'stores') {
+            void loadStoresInView();
+            return;
+          }
+
+          showViewportSearch();
+
           showViewportSearch();
         };
         mapClickHandler = clearStoreSelection;
