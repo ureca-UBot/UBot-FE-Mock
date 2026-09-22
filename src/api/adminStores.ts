@@ -1,87 +1,48 @@
-import { api, ApiError, type ApiResponse } from './client';
+import type { AdminStorePayload, PageResponse, Store } from '../types/store';
+import { api, type ApiResponse } from './client';
+import { getStoreDetail, getStorePage, unwrapApiResponse } from './stores';
 
-export interface StoreService {
-  code: string;
-  name: string;
+export type AdminStore = Store;
+export type StorePage = PageResponse<Store>;
+export type { AdminStorePayload };
+
+export async function getAdminStorePage(
+  page = 0,
+  size = 20,
+  signal?: AbortSignal,
+): Promise<StorePage> {
+  return getStorePage(page, size, {}, signal);
 }
 
-export interface AdminStore {
-  storeId: number;
-  storeName: string;
-  sido: string;
-  sigungu: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-  phoneNumber: string | null;
-  businessHours: string | null;
-  services?: StoreService[];
+export async function getAdminStoreDetail(storeId: number, signal?: AbortSignal): Promise<AdminStore> {
+  return getStoreDetail(storeId, signal);
 }
 
-export interface StorePage {
-  content: AdminStore[];
-  page: number;
-  size: number;
-  totalElements: number;
-  totalPages: number;
-  first: boolean;
-  last: boolean;
-}
-
-export interface AdminStorePayload {
-  storeName: string;
-  sido: string;
-  sigungu: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-  phoneNumber: string | null;
-  businessHours: string | null;
-  serviceCodes: string[];
-}
-
-function unwrap<T>(response: ApiResponse<T>): T {
-  if (!response.success) {
-    throw new ApiError(response.message || 'API 요청에 실패했습니다.', {
-      code: response.code,
-      data: response.data,
-    });
-  }
-  return response.data;
-}
-
-export async function getAdminStorePage(page = 0, size = 20): Promise<StorePage> {
-  const params = new URLSearchParams({ page: String(page), size: String(size) });
-  const response = await api.get<ApiResponse<StorePage>>(
-    `/stores?${params.toString()}`,
-    { skipAuth: true },
-  );
-  return unwrap(response);
-}
-
-export async function getAdminStoreDetail(storeId: number): Promise<AdminStore> {
-  const response = await api.get<ApiResponse<AdminStore>>(
-    `/stores/${storeId}`,
-    { skipAuth: true },
-  );
-  return unwrap(response);
-}
-
-export async function createAdminStore(payload: AdminStorePayload): Promise<AdminStore> {
-  return unwrap(await api.post<ApiResponse<AdminStore>>('/admin/stores', payload));
+export async function createAdminStore(
+  payload: AdminStorePayload,
+  signal?: AbortSignal,
+): Promise<AdminStore> {
+  return unwrapApiResponse(await api.post<ApiResponse<AdminStore>>(
+    '/admin/stores', payload, { auth: true, signal },
+  ));
 }
 
 export async function updateAdminStore(
   storeId: number,
   payload: AdminStorePayload,
+  signal?: AbortSignal,
 ): Promise<AdminStore> {
-  return unwrap(await api.patch<ApiResponse<AdminStore>>(`/admin/stores/${storeId}`, payload));
+  return unwrapApiResponse(await api.patch<ApiResponse<AdminStore>>(
+    `/admin/stores/${storeId}`, payload, { auth: true, signal },
+  ));
 }
 
-export function deleteAdminStore(storeId: number): Promise<null> {
-  return api.delete(`/admin/stores/${storeId}`);
+export function deleteAdminStore(storeId: number, signal?: AbortSignal): Promise<null> {
+  return api.delete(`/admin/stores/${storeId}`, { auth: true, signal });
 }
 
 export async function activateAdminStore(storeId: number): Promise<AdminStore> {
-  return unwrap(await api.patch<ApiResponse<AdminStore>>(`/admin/stores/${storeId}/activate`));
+  return unwrapApiResponse(await api.patch<ApiResponse<AdminStore>>(
+    `/admin/stores/${storeId}/activate`, undefined, { auth: true },
+  ));
 }

@@ -19,11 +19,4 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
-  {
-    files: ['src/features/**/*.js', 'src/shared/**/*.js'],
-    extends: [js.configs.recommended],
-    languageOptions: {
-      globals: globals.browser,
-    },
-  },
 ]);

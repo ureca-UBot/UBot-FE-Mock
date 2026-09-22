@@ -5,7 +5,9 @@ import {
   getAdminStorePage,
   updateAdminStore,
 } from '../../api/adminStores';
-import { coordinatesForAddress, loadDaumPostcode } from '../../shared/kakao/sdk.js';
+import { ApiError } from '../../api/client';
+import { coordinatesForAddress, loadDaumPostcode } from '../../shared/kakao/sdk';
+import type { AdminStorePayload, Store } from '../../types/store';
 
 const PAGE_SIZE = 20;
 const KOREA_BOUNDS = {
@@ -15,64 +17,75 @@ const KOREA_BOUNDS = {
   maxLongitude: 132,
 };
 
-function adminErrorMessage(error) {
-  if (error.status === 401) return '로그인이 필요합니다.';
-  if (error.status === 403) return '관리자 권한이 필요합니다.';
-  if (error.code === 'STORE-002' || error.code === 'DUPLICATE_STORE') return '이미 등록된 매장입니다.';
-  if (error.code === 'STORE-003') {
+function adminErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return '요청을 처리하지 못했습니다.';
+  const apiError = error instanceof ApiError ? error : null;
+  if (apiError?.status === 401) return '로그인이 필요합니다.';
+  if (apiError?.status === 403) return '관리자 권한이 필요합니다.';
+  if (apiError?.code === 'STORE-002' || apiError?.code === 'DUPLICATE_STORE') return '이미 등록된 매장입니다.';
+  if (apiError?.code === 'STORE-003') {
     return '삭제된 동일 매장이 존재합니다. 기존 매장 복구가 필요합니다.';
   }
   return error.message || '요청을 처리하지 못했습니다.';
 }
 
-function optionalValue(value) {
+function optionalValue(value: string) {
   const normalized = value.trim();
   return normalized || null;
 }
 
-export function setupAdminStoreManagement() {
-  const root = document.querySelector('[data-page="admin"]');
-  const dialog = document.querySelector('#adminStoreDialog');
-  const form = document.querySelector('#adminStoreForm');
-  const rows = document.querySelector('#adminStoreRows');
-  if (!root || !dialog || !form || !rows || root.dataset.storeManagementReady) return;
-  root.dataset.storeManagementReady = 'true';
+export function setupAdminStoreManagement(): () => void {
+  const root = document.querySelector<HTMLElement>('[data-page="admin"]');
+  const dialog = document.querySelector<HTMLDialogElement>('#adminStoreDialog');
+  const form = document.querySelector<HTMLFormElement>('#adminStoreForm');
+  const rows = document.querySelector<HTMLTableSectionElement>('#adminStoreRows');
+  if (!root || !dialog || !form || !rows || root.dataset.storeManagementReady) return () => {};
 
-  const tabs = [...root.querySelectorAll('[data-admin-tab]')];
-  const panels = [...root.querySelectorAll('[data-admin-panel]')];
-  const pageTitle = document.querySelector('#adminPageTitle');
-  const pageDescription = document.querySelector('#adminPageDescription');
-  const notice = document.querySelector('#adminStoreNotice');
-  const empty = document.querySelector('#adminStoreEmpty');
-  const pageInfo = document.querySelector('#adminStorePageInfo');
-  const prevButton = document.querySelector('#adminStorePrev');
-  const nextButton = document.querySelector('#adminStoreNext');
-  const createButton = document.querySelector('#adminStoreCreate');
-  const closeButton = document.querySelector('#adminStoreDialogClose');
-  const submitButton = document.querySelector('#adminStoreSubmit');
-  const formTitle = document.querySelector('#adminStoreFormTitle');
-  const formMessage = document.querySelector('#adminStoreFormMessage');
-  const addressSearchButton = document.querySelector('#adminStoreAddressSearch');
-  const idInput = document.querySelector('#adminStoreId');
-  const nameInput = document.querySelector('#adminStoreName');
-  const sidoInput = document.querySelector('#adminStoreSido');
-  const sigunguInput = document.querySelector('#adminStoreSigungu');
-  const addressInput = document.querySelector('#adminStoreAddress');
-  const latitudeInput = document.querySelector('#adminStoreLatitude');
-  const longitudeInput = document.querySelector('#adminStoreLongitude');
-  const phoneInput = document.querySelector('#adminStorePhone');
-  const hoursInput = document.querySelector('#adminStoreHours');
-  const serviceInputs = [...form.querySelectorAll('input[name="adminServiceCode"]')];
-  const toast = document.querySelector('#toast');
+  const tabs = [...root.querySelectorAll<HTMLElement>('[data-admin-tab]')];
+  const panels = [...root.querySelectorAll<HTMLElement>('[data-admin-panel]')];
+  const pageTitle = document.querySelector<HTMLElement>('#adminPageTitle');
+  const pageDescription = document.querySelector<HTMLElement>('#adminPageDescription');
+  const notice = document.querySelector<HTMLElement>('#adminStoreNotice');
+  const empty = document.querySelector<HTMLElement>('#adminStoreEmpty');
+  const pageInfo = document.querySelector<HTMLElement>('#adminStorePageInfo');
+  const prevButton = document.querySelector<HTMLButtonElement>('#adminStorePrev');
+  const nextButton = document.querySelector<HTMLButtonElement>('#adminStoreNext');
+  const createButton = document.querySelector<HTMLButtonElement>('#adminStoreCreate');
+  const closeButton = document.querySelector<HTMLButtonElement>('#adminStoreDialogClose');
+  const submitButton = document.querySelector<HTMLButtonElement>('#adminStoreSubmit');
+  const formTitle = document.querySelector<HTMLElement>('#adminStoreFormTitle');
+  const formMessage = document.querySelector<HTMLElement>('#adminStoreFormMessage');
+  const addressSearchButton = document.querySelector<HTMLButtonElement>('#adminStoreAddressSearch');
+  const idInput = document.querySelector<HTMLInputElement>('#adminStoreId');
+  const nameInput = document.querySelector<HTMLInputElement>('#adminStoreName');
+  const sidoInput = document.querySelector<HTMLInputElement>('#adminStoreSido');
+  const sigunguInput = document.querySelector<HTMLInputElement>('#adminStoreSigungu');
+  const addressInput = document.querySelector<HTMLInputElement>('#adminStoreAddress');
+  const latitudeInput = document.querySelector<HTMLInputElement>('#adminStoreLatitude');
+  const longitudeInput = document.querySelector<HTMLInputElement>('#adminStoreLongitude');
+  const phoneInput = document.querySelector<HTMLInputElement>('#adminStorePhone');
+  const hoursInput = document.querySelector<HTMLInputElement>('#adminStoreHours');
+  const serviceInputs = [...form.querySelectorAll<HTMLInputElement>('input[name="adminServiceCode"]')];
+  const toast = document.querySelector<HTMLElement>('#toast');
+
+  if (!pageTitle || !pageDescription || !notice || !empty || !pageInfo
+    || !prevButton || !nextButton || !createButton || !closeButton || !submitButton
+    || !formTitle || !formMessage || !addressSearchButton || !idInput || !nameInput
+    || !sidoInput || !sigunguInput || !addressInput || !latitudeInput || !longitudeInput
+    || !phoneInput || !hoursInput) return () => {};
+  root.dataset.storeManagementReady = 'true';
 
   let currentPage = 0;
   let totalPages = 1;
   let listLoaded = false;
-  let visibleStores = new Map();
-  let editingStoreId = null;
-  let toastTimer;
+  let visibleStores = new Map<number, Store>();
+  let editingStoreId: number | null = null;
+  let toastTimer: number | undefined;
+  let editFrameId: number | undefined;
+  let disposed = false;
+  const abortController = new AbortController();
 
-  const showSuccess = (message) => {
+  const showSuccess = (message: string) => {
     if (!toast) return;
     window.clearTimeout(toastTimer);
     toast.textContent = message;
@@ -80,7 +93,7 @@ export function setupAdminStoreManagement() {
     toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2400);
   };
 
-  const setNotice = (message, type = '') => {
+  const setNotice = (message: string, type = '') => {
     notice.textContent = message;
     notice.dataset.type = type;
     notice.hidden = !message;
@@ -91,7 +104,7 @@ export function setupAdminStoreManagement() {
     formMessage.classList.toggle('success', Boolean(message) && !isError);
   };
 
-  const renderRows = (stores) => {
+  const renderRows = (stores: Store[]) => {
     rows.replaceChildren();
     visibleStores = new Map(stores.map((store) => [Number(store.storeId), store]));
     empty.classList.toggle('hidden', stores.length > 0);
@@ -137,7 +150,8 @@ export function setupAdminStoreManagement() {
     prevButton.disabled = true;
     nextButton.disabled = true;
     try {
-      const pageData = await getAdminStorePage(page, PAGE_SIZE);
+      const pageData = await getAdminStorePage(page, PAGE_SIZE, abortController.signal);
+      if (disposed) return;
       const stores = pageData?.content || [];
       currentPage = pageData?.page ?? page;
       totalPages = Math.max(pageData?.totalPages || 1, 1);
@@ -153,7 +167,7 @@ export function setupAdminStoreManagement() {
     }
   };
 
-  const selectTab = (name) => {
+  const selectTab = (name: string) => {
     tabs.forEach((tab) => {
       const active = tab.dataset.adminTab === name;
       tab.classList.toggle('active', active);
@@ -188,7 +202,7 @@ export function setupAdminStoreManagement() {
     nameInput.focus();
   };
 
-  const fillForm = (store, fallbackStoreId) => {
+  const fillForm = (store: Store, fallbackStoreId: number) => {
     editingStoreId = Number(store.storeId ?? fallbackStoreId);
     idInput.defaultValue = String(editingStoreId);
     idInput.value = String(editingStoreId);
@@ -196,8 +210,8 @@ export function setupAdminStoreManagement() {
     sidoInput.value = store.sido || '';
     sigunguInput.value = store.sigungu || '';
     addressInput.value = store.address || '';
-    latitudeInput.value = store.latitude ?? '';
-    longitudeInput.value = store.longitude ?? '';
+    latitudeInput.value = String(store.latitude ?? '');
+    longitudeInput.value = String(store.longitude ?? '');
     phoneInput.defaultValue = store.phoneNumber || '';
     phoneInput.value = store.phoneNumber || '';
     hoursInput.value = store.businessHours || '';
@@ -205,18 +219,19 @@ export function setupAdminStoreManagement() {
     serviceInputs.forEach((input) => { input.checked = serviceCodes.has(input.value); });
   };
 
-  const openEditDialog = async (storeId) => {
+  const openEditDialog = async (storeId: number) => {
     resetForm();
     formTitle.textContent = '매장 정보 수정';
     submitButton.textContent = '수정 내용 저장';
     submitButton.disabled = true;
     setNotice('매장 상세 정보를 불러오고 있습니다.');
     try {
-      const detail = await getAdminStoreDetail(storeId);
+      const detail = await getAdminStoreDetail(storeId, abortController.signal);
+      if (disposed) return;
       const store = { ...(visibleStores.get(storeId) || {}), ...detail };
       fillForm(store, storeId);
       dialog.showModal();
-      window.requestAnimationFrame(() => {
+      editFrameId = window.requestAnimationFrame(() => {
         idInput.value = String(editingStoreId);
         phoneInput.value = store.phoneNumber || '';
       });
@@ -228,7 +243,7 @@ export function setupAdminStoreManagement() {
     }
   };
 
-  const buildPayload = () => ({
+  const buildPayload = (): AdminStorePayload => ({
     storeName: nameInput.value.trim(),
     sido: sidoInput.value.trim(),
     sigungu: sigunguInput.value.trim(),
@@ -240,7 +255,7 @@ export function setupAdminStoreManagement() {
     serviceCodes: serviceInputs.filter((input) => input.checked).map((input) => input.value),
   });
 
-  const validatePayload = (payload) => {
+  const validatePayload = (payload: AdminStorePayload) => {
     if (!form.reportValidity()) return false;
     const { latitude, longitude } = payload;
     if (latitude < KOREA_BOUNDS.minLatitude || latitude > KOREA_BOUNDS.maxLatitude
@@ -272,28 +287,38 @@ export function setupAdminStoreManagement() {
             longitudeInput.value = coordinates.longitude.toFixed(7);
             setFormMessage('주소와 좌표가 자동 입력되었습니다.', false);
           } catch (error) {
-            setFormMessage(error.message);
+            setFormMessage(adminErrorMessage(error));
           }
         },
       }).open();
     } catch (error) {
-      setFormMessage(error.message);
+      setFormMessage(adminErrorMessage(error));
     } finally {
       addressSearchButton.disabled = false;
     }
   };
 
-  tabs.forEach((tab) => tab.addEventListener('click', () => selectTab(tab.dataset.adminTab)));
+  const tabHandlers = new Map<HTMLElement, () => void>();
+  tabs.forEach((tab) => {
+    const handler = () => selectTab(tab.dataset.adminTab || 'operations');
+    tabHandlers.set(tab, handler);
+    tab.addEventListener('click', handler);
+  });
+  const closeDialog = () => dialog.close();
+  const previousPage = () => { void loadStores(currentPage - 1); };
+  const nextPage = () => { void loadStores(currentPage + 1); };
   createButton.addEventListener('click', openCreateDialog);
-  closeButton.addEventListener('click', () => dialog.close());
+  closeButton.addEventListener('click', closeDialog);
   addressSearchButton.addEventListener('click', searchAddress);
-  prevButton.addEventListener('click', () => loadStores(currentPage - 1));
-  nextButton.addEventListener('click', () => loadStores(currentPage + 1));
+  prevButton.addEventListener('click', previousPage);
+  nextButton.addEventListener('click', nextPage);
 
-  rows.addEventListener('click', async (event) => {
-    const button = event.target.closest('[data-store-action]');
+  const handleRowsClick = async (event: MouseEvent) => {
+    if (!(event.target instanceof Element)) return;
+    const button = event.target.closest<HTMLButtonElement>('[data-store-action]');
     if (!button) return;
-    const row = button.closest('tr[data-store-id]');
+    const row = button.closest<HTMLTableRowElement>('tr[data-store-id]');
+    if (!row) return;
     const storeId = Number(row?.dataset.storeId);
     if (!storeId) return;
 
@@ -306,16 +331,17 @@ export function setupAdminStoreManagement() {
     if (!window.confirm(`“${storeName}” 매장을 삭제할까요?\n삭제된 매장은 사용자 화면에서 조회되지 않습니다.`)) return;
     button.disabled = true;
     try {
-      await deleteAdminStore(storeId);
+      await deleteAdminStore(storeId, abortController.signal);
       await loadStores(currentPage);
       showSuccess('매장이 삭제되었습니다.');
     } catch (error) {
       setNotice(`매장을 삭제하지 못했습니다. ${adminErrorMessage(error)}`, 'error');
       button.disabled = false;
     }
-  });
+  };
+  rows.addEventListener('click', handleRowsClick);
 
-  form.addEventListener('submit', async (event) => {
+  const handleSubmit = async (event: SubmitEvent) => {
     event.preventDefault();
     setFormMessage();
     const payload = buildPayload();
@@ -325,7 +351,9 @@ export function setupAdminStoreManagement() {
     submitButton.disabled = true;
     submitButton.textContent = storeId ? '수정 중…' : '등록 중…';
     try {
-      await (storeId ? updateAdminStore(storeId, payload) : createAdminStore(payload));
+      await (storeId
+        ? updateAdminStore(storeId, payload, abortController.signal)
+        : createAdminStore(payload, abortController.signal));
       dialog.close();
       await loadStores(storeId ? currentPage : 0);
       showSuccess(storeId ? '매장 정보가 수정되었습니다.' : '새 매장이 등록되었습니다.');
@@ -335,11 +363,33 @@ export function setupAdminStoreManagement() {
       submitButton.disabled = false;
       submitButton.textContent = storeId ? '수정 내용 저장' : '등록하기';
     }
-  });
+  };
+  form.addEventListener('submit', handleSubmit);
 
-  document.addEventListener('ubot:route-change', (event) => {
-    if (event.detail?.route === 'admin') selectTab('operations');
-  });
+  const handleRouteChange = (event: Event) => {
+    const routeEvent = event as CustomEvent<{ route?: string }>;
+    if (routeEvent.detail?.route === 'admin') selectTab('operations');
+  };
+  document.addEventListener('ubot:route-change', handleRouteChange);
 
   selectTab('operations');
+
+  return () => {
+    disposed = true;
+    abortController.abort();
+    tabHandlers.forEach((handler, tab) => tab.removeEventListener('click', handler));
+    createButton.removeEventListener('click', openCreateDialog);
+    closeButton.removeEventListener('click', closeDialog);
+    addressSearchButton.removeEventListener('click', searchAddress);
+    prevButton.removeEventListener('click', previousPage);
+    nextButton.removeEventListener('click', nextPage);
+    rows.removeEventListener('click', handleRowsClick);
+    form.removeEventListener('submit', handleSubmit);
+    document.removeEventListener('ubot:route-change', handleRouteChange);
+    window.clearTimeout(toastTimer);
+    if (editFrameId !== undefined) window.cancelAnimationFrame(editFrameId);
+    if (dialog.open) dialog.close();
+    delete root.dataset.storeManagementReady;
+  };
 }
+

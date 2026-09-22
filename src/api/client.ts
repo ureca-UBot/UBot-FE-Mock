@@ -30,7 +30,7 @@ export class ApiError extends Error {
 }
 
 export interface ApiRequestOptions extends RequestInit {
-  skipAuth?: boolean;
+  auth?: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -50,8 +50,8 @@ export async function apiRequest<T = unknown>(
   options: ApiRequestOptions = {},
 ): Promise<T> {
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  const { skipAuth = false, ...fetchOptions } = options;
-  const accessToken = skipAuth ? null : getAccessToken();
+  const { auth = false, ...fetchOptions } = options;
+  const accessToken = auth ? getAccessToken() : null;
   const headers = new Headers(fetchOptions.headers);
 
   if (typeof fetchOptions.body === 'string' && !headers.has('Content-Type')) {

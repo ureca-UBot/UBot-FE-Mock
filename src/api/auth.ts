@@ -16,7 +16,6 @@ export async function loginUser(email: string, password: string): Promise<AuthTo
   const response = await api.post<ApiResponse<AuthTokens>>(
     '/auth/login',
     { email, password },
-    { skipAuth: true },
   );
   const tokens = unwrap(response);
   saveAuthTokens(tokens);
