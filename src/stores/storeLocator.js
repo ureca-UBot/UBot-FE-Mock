@@ -17,8 +17,9 @@ const KOREA_MAP_LIMIT = {
 
 const STORE_PAGE_SIZE = 20;
 const MAP_LIST_LIMIT = 50;
-const SERVER_CLUSTER_MIN_LEVEL = 9;
-const VIEWPORT_REQUEST_DELAY = 350;
+const SERVER_CLUSTER_MIN_LEVEL = 7;
+const INDIVIDUAL_MARKER_MAX_LEVEL = SERVER_CLUSTER_MIN_LEVEL - 1;
+const CLUSTER_MARKER_GAP_PX = 8;
 
 let kakaoMapsPromise;
 
@@ -40,7 +41,7 @@ function clamp(value, min, max) {
 }
 
 export function loadKakaoMaps() {
-  if (window.kakao?.maps?.services && window.kakao?.maps?.MarkerClusterer) {
+  if (window.kakao?.maps?.services) {
     return new Promise((resolve) => window.kakao.maps.load(() => resolve(window.kakao.maps)));
   }
 
@@ -72,7 +73,7 @@ export function loadKakaoMaps() {
 
     script.dataset.ubotKakaoMap = '1';
     script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=clusterer,services`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=services`;
     script.addEventListener('load', onReady, { once: true });
     script.addEventListener('error', () => reject(new Error('카카오 지도 SDK 로드에 실패했습니다.')), { once: true });
     document.head.appendChild(script);
@@ -115,24 +116,32 @@ export function setupStoreLocator() {
   const pageInfoElement = document.querySelector('#storePageInfo');
   const prevPageButton = document.querySelector('#storePrevPage');
   const nextPageButton = document.querySelector('#storeNextPage');
+  const viewportSearchButton = document.querySelector('#storeViewportSearch');
 
   if (!mapElement || !listElement || !searchInput || !searchButton || !statusElement) return;
 
   let maps;
   let map;
   let infoWindow;
-  let markerClusterer;
   let markers = [];
   let stores = [];
   let selectedStoreId = null;
   let viewportRequestId = 0;
-  let viewportTimer = null;
   let viewportAbortController = null;
   let lastViewportRequestKey = '';
   let mapInitPromise = null;
   let suppressViewportUntil = 0;
+  let pendingClusterSearchHandler = null;
   let currentRegionPage = 0;
   let regionSearchActive = false;
+
+  const showViewportSearch = () => {
+    if (viewportSearchButton) viewportSearchButton.hidden = false;
+  };
+
+  const hideViewportSearch = () => {
+    if (viewportSearchButton) viewportSearchButton.hidden = true;
+  };
 
   const keepMapInsideKorea = () => {
     if (!map || !maps) return false;
@@ -223,7 +232,6 @@ export function setupStoreLocator() {
   };
 
   const clearMarkers = () => {
-    markerClusterer?.clear();
     markers.forEach(({ marker }) => marker.setMap(null));
     markers = [];
     infoWindow?.close();
@@ -357,11 +365,7 @@ export function setupStoreLocator() {
       markers.push({ storeId: store.storeId, marker });
     });
 
-    if (markerClusterer) {
-      markerClusterer.addMarkers(markers.map(({ marker }) => marker));
-    } else {
-      markers.forEach(({ marker }) => marker.setMap(map));
-    }
+    markers.forEach(({ marker }) => marker.setMap(map));
 
     if (selectedStoreId) {
       const selected = nextStores.find((store) => store.storeId === selectedStoreId);
@@ -369,14 +373,22 @@ export function setupStoreLocator() {
     }
   };
 
+  const getClusterMarkerSize = (count) => (
+    clamp(Math.round(40 + Math.sqrt(Math.max(0, count - 1)) * 4), 40, 70)
+  );
+
   const createClusterMarkerImage = (count) => {
-    const fontSize = count >= 1_000 ? 10 : count >= 100 ? 11 : 13;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><circle cx="28" cy="28" r="25" fill="#1677FF" stroke="white" stroke-width="5"/><text x="28" y="33" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${count}</text></svg>`;
+    const size = getClusterMarkerSize(count);
+    const center = size / 2;
+    const radius = center - 3;
+    const fontSize = clamp(Math.round(size * (count >= 1_000 ? 0.2 : 0.25)), 11, 16);
+    const textY = center + fontSize * 0.35;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><circle cx="${center}" cy="${center}" r="${radius}" fill="#1677FF" stroke="white" stroke-width="5"/><text x="${center}" y="${textY}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="800" fill="white">${count}</text></svg>`;
     const source = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
     return new maps.MarkerImage(
       source,
-      new maps.Size(56, 56),
-      { offset: new maps.Point(28, 28) },
+      new maps.Size(size, size),
+      { offset: new maps.Point(center, center) },
     );
   };
 
@@ -405,11 +417,81 @@ export function setupStoreLocator() {
     listElement.appendChild(guide);
   };
 
+  const mergeOverlappingClusters = (sourceClusters) => {
+    if (!map || !maps || sourceClusters.length < 2) return sourceClusters;
+
+    const projection = map.getProjection();
+    const project = (cluster) => {
+      const point = projection.pointFromCoords(
+        new maps.LatLng(cluster.latitude, cluster.longitude),
+      );
+      return { x: point.x, y: point.y };
+    };
+    const merge = (left, right) => {
+      const count = left.count + right.count;
+      return {
+        latitude: ((left.latitude * left.count) + (right.latitude * right.count)) / count,
+        longitude: ((left.longitude * left.count) + (right.longitude * right.count)) / count,
+        count,
+      };
+    };
+
+    let clusters = sourceClusters
+      .map((cluster) => ({
+        latitude: Number(cluster.latitude),
+        longitude: Number(cluster.longitude),
+        count: Number(cluster.count),
+      }))
+      .filter((cluster) => (
+        Number.isFinite(cluster.latitude)
+        && Number.isFinite(cluster.longitude)
+        && Number.isFinite(cluster.count)
+        && cluster.count > 0
+      ))
+      .sort((a, b) => b.count - a.count);
+
+    for (let pass = 0; pass < 4; pass += 1) {
+      const merged = [];
+
+      clusters.forEach((cluster) => {
+        const clusterPoint = project(cluster);
+        let closestIndex = -1;
+        let closestDistance = Infinity;
+
+        merged.forEach((candidate, index) => {
+          const candidatePoint = project(candidate);
+          const distance = Math.hypot(
+            clusterPoint.x - candidatePoint.x,
+            clusterPoint.y - candidatePoint.y,
+          );
+          const minimumDistance = (
+            (getClusterMarkerSize(cluster.count) + getClusterMarkerSize(candidate.count)) / 2
+          ) + CLUSTER_MARKER_GAP_PX;
+
+          if (distance < minimumDistance && distance < closestDistance) {
+            closestIndex = index;
+            closestDistance = distance;
+          }
+        });
+
+        if (closestIndex < 0) merged.push(cluster);
+        else merged[closestIndex] = merge(merged[closestIndex], cluster);
+      });
+
+      if (merged.length === clusters.length) break;
+      clusters = merged.sort((a, b) => b.count - a.count);
+    }
+
+    return clusters;
+  };
+
   const renderServerClusters = (clusters) => {
-    if (!map || !maps) return;
+    if (!map || !maps) return 0;
     clearMarkers();
 
-    clusters.forEach((cluster, index) => {
+    const displayClusters = mergeOverlappingClusters(clusters);
+
+    displayClusters.forEach((cluster, index) => {
       const marker = new maps.Marker({
         map,
         position: new maps.LatLng(cluster.latitude, cluster.longitude),
@@ -418,20 +500,39 @@ export function setupStoreLocator() {
         zIndex: 10 + Math.min(cluster.count, 1_000),
       });
       maps.event.addListener(marker, 'click', () => {
+        if (pendingClusterSearchHandler) {
+          maps.event.removeListener(map, 'idle', pendingClusterSearchHandler);
+        }
+
+        pendingClusterSearchHandler = () => {
+          maps.event.removeListener(map, 'idle', pendingClusterSearchHandler);
+          pendingClusterSearchHandler = null;
+          window.requestAnimationFrame(() => {
+            loadStoresInView({ forceIndividual: true });
+          });
+        };
+        maps.event.addListener(map, 'idle', pendingClusterSearchHandler);
+        suppressViewportUntil = Date.now() + 800;
+        map.setLevel(Math.max(
+          KOREA_MAP_LIMIT.minLevel,
+          Math.min(map.getLevel() - 2, INDIVIDUAL_MARKER_MAX_LEVEL),
+        ));
         map.setCenter(marker.getPosition());
-        map.setLevel(Math.max(1, map.getLevel() - 2));
       });
       markers.push({ storeId: `cluster-${index}`, marker });
     });
+
+    return displayClusters.length;
   };
 
-  const loadStoresInView = async () => {
-    if (!map || Date.now() < suppressViewportUntil) return;
+  const loadStoresInView = async ({ forceIndividual = false } = {}) => {
+    if (!map) return;
 
     const bounds = map.getBounds();
     const sw = bounds.getSouthWest();
     const ne = bounds.getNorthEast();
     const level = map.getLevel();
+    const shouldUseClusters = !forceIndividual && level >= SERVER_CLUSTER_MIN_LEVEL;
     const params = new URLSearchParams({
       swLat: clamp(sw.getLat(), KOREA_MAP_LIMIT.minLatitude, KOREA_MAP_LIMIT.maxLatitude).toFixed(6),
       swLng: clamp(sw.getLng(), KOREA_MAP_LIMIT.minLongitude, KOREA_MAP_LIMIT.maxLongitude).toFixed(6),
@@ -439,10 +540,30 @@ export function setupStoreLocator() {
       neLng: clamp(ne.getLng(), KOREA_MAP_LIMIT.minLongitude, KOREA_MAP_LIMIT.maxLongitude).toFixed(6),
     });
     appendSelectedServiceParams(params);
-    const requestKey = `${level}:${params.toString()}`;
-    if (requestKey === lastViewportRequestKey) return;
+    if (shouldUseClusters) {
+      params.set('level', String(level));
+    } else {
+      const center = map.getCenter();
+      params.set('latitude', clamp(
+        center.getLat(),
+        KOREA_MAP_LIMIT.minLatitude,
+        KOREA_MAP_LIMIT.maxLatitude,
+      ).toFixed(6));
+      params.set('longitude', clamp(
+        center.getLng(),
+        KOREA_MAP_LIMIT.minLongitude,
+        KOREA_MAP_LIMIT.maxLongitude,
+      ).toFixed(6));
+    }
+    const requestKey = `${shouldUseClusters ? 'clusters' : 'stores'}:${level}:${params.toString()}`;
+    if (requestKey === lastViewportRequestKey) {
+      hideViewportSearch();
+      return;
+    }
 
     lastViewportRequestKey = requestKey;
+    hideViewportSearch();
+    if (viewportSearchButton) viewportSearchButton.disabled = true;
     viewportAbortController?.abort();
     const requestController = new AbortController();
     viewportAbortController = requestController;
@@ -450,8 +571,7 @@ export function setupStoreLocator() {
     setStatus('현재 지도 영역의 매장을 찾고 있습니다.');
 
     try {
-      if (level >= SERVER_CLUSTER_MIN_LEVEL) {
-        params.set('level', String(level));
+      if (shouldUseClusters) {
         const response = await api.get(
           `/stores/map/clusters?${params.toString()}`,
           { signal: requestController.signal },
@@ -463,8 +583,8 @@ export function setupStoreLocator() {
         regionSearchActive = false;
         renderPagination(null);
         renderClusterSummary(total);
-        renderServerClusters(clusters);
-        setStatus(`현재 지도 영역의 매장 ${total}곳을 ${clusters.length}개 클러스터로 표시했습니다.`);
+        const displayedClusterCount = renderServerClusters(clusters);
+        setStatus(`현재 지도 영역의 매장 ${total}곳을 ${displayedClusterCount}개 클러스터로 표시했습니다.`);
         return;
       }
 
@@ -478,7 +598,7 @@ export function setupStoreLocator() {
       const sortedStores = [...nextStores].sort((a, b) => {
         const aDistance = Number.isFinite(a.distanceKm) ? a.distanceKm : Infinity;
         const bDistance = Number.isFinite(b.distanceKm) ? b.distanceKm : Infinity;
-        return aDistance - bDistance;
+        return aDistance - bDistance || a.storeId - b.storeId;
       });
 
       regionSearchActive = false;
@@ -493,17 +613,14 @@ export function setupStoreLocator() {
       if (error.name === 'AbortError') return;
       if (requestId !== viewportRequestId) return;
       lastViewportRequestKey = '';
+      showViewportSearch();
       setStatus(`현재 지도 영역 매장 조회 실패: ${error.message}`, true);
     } finally {
       if (viewportAbortController === requestController) {
         viewportAbortController = null;
       }
+      if (viewportSearchButton) viewportSearchButton.disabled = false;
     }
-  };
-
-  const queueViewportLoad = (delay = VIEWPORT_REQUEST_DELAY) => {
-    window.clearTimeout(viewportTimer);
-    viewportTimer = window.setTimeout(loadStoresInView, delay);
   };
 
   const fitMapToStores = (nextStores) => {
@@ -539,38 +656,20 @@ export function setupStoreLocator() {
         map.setMinLevel(KOREA_MAP_LIMIT.minLevel);
         map.setMaxLevel(KOREA_MAP_LIMIT.maxLevel);
         map.addControl(new maps.ZoomControl(), maps.ControlPosition.RIGHT);
-        markerClusterer = new maps.MarkerClusterer({
-          map,
-          averageCenter: true,
-          minLevel: 7,
-          gridSize: 70,
-          styles: [{
-            width: '46px',
-            height: '46px',
-            border: '4px solid #fff',
-            borderRadius: '50%',
-            color: '#fff',
-            background: '#1677ff',
-            boxShadow: '0 7px 18px rgba(22,119,255,.3)',
-            fontSize: '12px',
-            fontWeight: '800',
-            lineHeight: '38px',
-            textAlign: 'center',
-          }],
-        });
         infoWindow = new maps.InfoWindow({ zIndex: 5 });
         maps.event.addListener(map, 'idle', () => {
           if (Date.now() < suppressViewportUntil) return;
           if (keepMapInsideKorea()) return;
-          queueViewportLoad();
+          showViewportSearch();
         });
         maps.event.addListener(map, 'click', clearStoreSelection);
 
         window.requestAnimationFrame(() => {
+          suppressViewportUntil = Date.now() + 600;
           map.relayout();
           map.setCenter(new maps.LatLng(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude));
           map.setLevel(3);
-          queueViewportLoad(0);
+          loadStoresInView();
         });
 
         return map;
@@ -588,11 +687,12 @@ export function setupStoreLocator() {
   const focusMap = async (latitude, longitude, label) => {
     try {
       await ensureMap();
+      suppressViewportUntil = Date.now() + 600;
       map.relayout();
       map.setCenter(new maps.LatLng(latitude, longitude));
       map.setLevel(3);
       setStatus(`${label} 중심으로 현재 지도 영역의 매장을 찾고 있습니다.`);
-      queueViewportLoad(0);
+      await loadStoresInView();
     } catch {
       // ensureMap already exposes the user-facing error in the map/status area.
     }
@@ -634,7 +734,6 @@ export function setupStoreLocator() {
     params.set('size', String(STORE_PAGE_SIZE));
     appendSelectedServiceParams(params);
 
-    window.clearTimeout(viewportTimer);
     viewportAbortController?.abort();
     viewportAbortController = null;
     lastViewportRequestKey = '';
@@ -699,6 +798,7 @@ export function setupStoreLocator() {
     if (event.key === 'Enter') searchLocation();
   });
   locationButton?.addEventListener('click', useCurrentLocation);
+  viewportSearchButton?.addEventListener('click', loadStoresInView);
   regionSearchButton?.addEventListener('click', () => searchStoresByRegion(0));
   prevPageButton?.addEventListener('click', () => {
     if (regionSearchActive && currentRegionPage > 0) searchStoresByRegion(currentRegionPage - 1);
@@ -721,7 +821,7 @@ export function setupStoreLocator() {
     window.setTimeout(() => {
       ensureMap().then(() => {
         map.relayout();
-        if (!stores.length) queueViewportLoad(0);
+        if (!stores.length) loadStoresInView();
       }).catch(() => {});
     }, 80);
   });

@@ -403,7 +403,7 @@
             </fieldset>
             <button id="storeRegionSearchButton" type="button">조건으로 찾기</button>
           </div>
-          <div class="store-help-strip"><span><b>TIP</b> 지도를 움직이면 현재 보이는 영역의 매장을 자동으로 다시 보여드려요.</span><span>지역이나 서비스 조건을 선택하면 결과를 더 빠르게 좁힐 수 있습니다.</span></div>
+          <div class="store-help-strip"><span><b>TIP</b> 지도를 움직인 뒤 ‘이 지역 검색’을 누르면 현재 영역의 매장을 보여드려요.</span><span>지역이나 서비스 조건을 선택하면 결과를 더 빠르게 좁힐 수 있습니다.</span></div>
         </section>
         <div class="store-result-bar">
           <div><b>검색 결과</b><span id="storeResultCount"></span></div>
@@ -411,8 +411,11 @@
         </div>
         <div class="stores-grid">
           <div class="store-map-card">
-            <div class="store-map-head"><div><span class="store-live-dot"></span><b>현재 지도 영역</b></div><small>지도를 이동하거나 확대·축소해 보세요</small></div>
-            <div class="stores-map" id="storeKakaoMap"><div class="stores-map-placeholder">카카오 지도를 준비하고 있습니다.</div></div>
+            <div class="store-map-head"><div><span class="store-live-dot"></span><b>현재 지도 영역</b></div><small>이동 후 버튼을 눌러 다시 검색하세요</small></div>
+            <div class="store-map-shell">
+              <div class="stores-map" id="storeKakaoMap"><div class="stores-map-placeholder">카카오 지도를 준비하고 있습니다.</div></div>
+              <button class="store-viewport-search" id="storeViewportSearch" type="button" hidden>이 지역 검색</button>
+            </div>
           </div>
           <aside class="stores-list">
             <div class="stores-list-head"><div><span>NEARBY STORE</span><h3>가까운 대리점</h3></div><small>매장을 선택하면 지도에서 위치를 확인할 수 있어요.</small></div>
