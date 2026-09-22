@@ -8,7 +8,12 @@ export function HomePage({ active, heroIndex, loggedIn }: PageProps) {
   return (
     <>
     <section className={`route${active ? ' active' : ''}`} data-page="home">
-      <section className="desktop-only editorial-hero hero-carousel" aria-roledescription="carousel" aria-label="U봇 주요 서비스">
+      <section
+          className="desktop-only editorial-hero hero-carousel"
+          data-current={heroIndex}
+          aria-roledescription="carousel"
+          aria-label="U봇 주요 서비스"
+        >
         <div className="hero-stage">
           <article className={`hero-slide hero-slide-life${heroIndex === 0 ? ' active' : ''}`} data-hero-slide="0" aria-hidden={heroIndex !== 0}>
             <div className="hero-inner">

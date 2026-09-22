@@ -620,7 +620,6 @@ export function setupStoreLocator(): () => void {
 
           showViewportSearch();
 
-          showViewportSearch();
         };
         mapClickHandler = clearStoreSelection;
         loadedMaps.event.addListener(createdMap, 'idle', mapIdleHandler);

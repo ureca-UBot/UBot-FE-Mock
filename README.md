@@ -16,18 +16,28 @@ U봇 서비스의 Vite + React 프론트엔드입니다. 매장 검색, Kakao �
 ```text
 src/
 ├── api/                    공통 API client와 도메인 API
-├── app/                    React 애플리케이션 진입점
+├── app/                    React 애플리케이션과 화면 전환
 ├── auth/                   토큰 저장소
+├── components/
+│   ├── auth/               로그인 UI
+│   ├── layout/             공통 Header / Navigation
+│   └── modals/             공통 Dialog UI
 ├── features/
 │   ├── admin-store/        관리자 매장 관리
 │   └── store-locator/      매장 검색과 지도
-├── legacy/                 기존 시연 화면과 임시 DOM 제어 코드
+├── pages/                  서비스 화면 단위 React 컴포넌트
 ├── shared/
 │   └── kakao/              Kakao Maps·우편번호 SDK 로더
+├── styles/                 공통 스타일
+├── types/                  공통 TypeScript 타입
 └── main.tsx
 ```
 
-`legacy`는 기존 시연 동작을 보존하기 위한 전환 영역입니다. 새 기능은 `features`와 TypeScript 모듈에 작성하고, 기존 시연 화면도 기능 단위로 점진적으로 React 컴포넌트로 옮깁니다.
+기존 시연 화면은 React 컴포넌트 구조로 이전했으며,
+src/legacy, mockup.html, setupLegacyMock.js 의존성은 제거되었습니다.
+
+매장 검색과 관리자 매장 관리는 기존 검증된 imperative setup 모듈을
+React page의 useEffect에서 연결하는 전환 구조를 사용합니다.
 
 ## 로컬 실행
 
