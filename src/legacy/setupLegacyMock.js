@@ -1,7 +1,7 @@
-import { loginUser } from '../api/auth.js';
-import { hasAccessToken } from '../auth/tokenStorage.js';
+import { loginUser } from '../api/auth';
+import { hasAccessToken } from '../auth/tokenStorage';
 
-export function setupMock() {
+export function setupLegacyMock() {
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 
 const state={

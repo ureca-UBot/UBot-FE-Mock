@@ -1,4 +1,5 @@
-import { api } from '../api/client.js';
+import { api } from '../../api/client';
+import { loadKakaoMaps } from '../../shared/kakao/sdk.js';
 
 const DEFAULT_LOCATION = {
   latitude: 37.497942,
@@ -21,8 +22,6 @@ const SERVER_CLUSTER_MIN_LEVEL = 7;
 const INDIVIDUAL_MARKER_MAX_LEVEL = SERVER_CLUSTER_MIN_LEVEL - 1;
 const CLUSTER_MARKER_GAP_PX = 8;
 
-let kakaoMapsPromise;
-
 function unwrap(response) {
   if (response?.success === false) {
     throw new Error(response.message || 'API 요청에 실패했습니다.');
@@ -38,48 +37,6 @@ function formatDistance(distanceKm) {
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
-}
-
-export function loadKakaoMaps() {
-  if (window.kakao?.maps?.services) {
-    return new Promise((resolve) => window.kakao.maps.load(() => resolve(window.kakao.maps)));
-  }
-
-  if (kakaoMapsPromise) return kakaoMapsPromise;
-
-  const appKey = import.meta.env.VITE_KAKAO_JAVASCRIPT_KEY?.trim();
-  if (!appKey) {
-    return Promise.reject(new Error('VITE_KAKAO_JAVASCRIPT_KEY가 설정되지 않았습니다.'));
-  }
-
-  kakaoMapsPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-ubot-kakao-map]');
-    const script = existing || document.createElement('script');
-
-    const onReady = () => {
-      if (!window.kakao?.maps) {
-        reject(new Error('카카오 지도 SDK를 불러오지 못했습니다.'));
-        return;
-      }
-      window.kakao.maps.load(() => resolve(window.kakao.maps));
-    };
-
-    if (existing) {
-      if (window.kakao?.maps) onReady();
-      else existing.addEventListener('load', onReady, { once: true });
-      existing.addEventListener('error', () => reject(new Error('카카오 지도 SDK 로드에 실패했습니다.')), { once: true });
-      return;
-    }
-
-    script.dataset.ubotKakaoMap = '1';
-    script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${encodeURIComponent(appKey)}&autoload=false&libraries=services`;
-    script.addEventListener('load', onReady, { once: true });
-    script.addEventListener('error', () => reject(new Error('카카오 지도 SDK 로드에 실패했습니다.')), { once: true });
-    document.head.appendChild(script);
-  });
-
-  return kakaoMapsPromise;
 }
 
 function buildInfoWindow(store) {

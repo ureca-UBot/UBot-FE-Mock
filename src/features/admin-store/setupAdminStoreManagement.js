@@ -4,8 +4,8 @@ import {
   getAdminStoreDetail,
   getAdminStorePage,
   updateAdminStore,
-} from '../api/adminStores.js';
-import { loadKakaoMaps } from '../stores/storeLocator.js';
+} from '../../api/adminStores';
+import { coordinatesForAddress, loadDaumPostcode } from '../../shared/kakao/sdk.js';
 
 const PAGE_SIZE = 20;
 const KOREA_BOUNDS = {
@@ -23,57 +23,6 @@ function adminErrorMessage(error) {
     return '삭제된 동일 매장이 존재합니다. 기존 매장 복구가 필요합니다.';
   }
   return error.message || '요청을 처리하지 못했습니다.';
-}
-
-let postcodePromise;
-
-function loadDaumPostcode() {
-  const loadedPostcode = window.kakao?.Postcode || window.daum?.Postcode;
-  if (loadedPostcode) return Promise.resolve(loadedPostcode);
-  if (postcodePromise) return postcodePromise;
-
-  postcodePromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-ubot-daum-postcode]');
-    const script = existing || document.createElement('script');
-    const onReady = () => {
-      const Postcode = window.kakao?.Postcode || window.daum?.Postcode;
-      if (Postcode) resolve(Postcode);
-      else reject(new Error('주소 검색 서비스를 불러오지 못했습니다.'));
-    };
-
-    if (existing) {
-      existing.addEventListener('load', onReady, { once: true });
-      existing.addEventListener('error', () => reject(new Error('주소 검색 서비스 로드에 실패했습니다.')), { once: true });
-      return;
-    }
-
-    script.dataset.ubotDaumPostcode = '1';
-    script.async = true;
-    script.src = 'https://t1.kakaocdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js';
-    script.addEventListener('load', onReady, { once: true });
-    script.addEventListener('error', () => reject(new Error('주소 검색 서비스 로드에 실패했습니다.')), { once: true });
-    document.head.appendChild(script);
-  });
-
-  return postcodePromise;
-}
-
-function coordinatesForAddress(address) {
-  return loadKakaoMaps().then((maps) => new Promise((resolve, reject) => {
-    if (!maps.services?.Geocoder) {
-      reject(new Error('카카오 주소 좌표 변환 서비스를 사용할 수 없습니다.'));
-      return;
-    }
-
-    const geocoder = new maps.services.Geocoder();
-    geocoder.addressSearch(address, (results, status) => {
-      if (status !== maps.services.Status.OK || !results.length) {
-        reject(new Error('선택한 주소의 좌표를 찾지 못했습니다.'));
-        return;
-      }
-      resolve({ latitude: Number(results[0].y), longitude: Number(results[0].x) });
-    });
-  }));
 }
 
 function optionalValue(value) {

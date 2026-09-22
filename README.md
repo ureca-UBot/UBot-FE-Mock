@@ -1,86 +1,86 @@
-# U봇 Responsive Service Mock v4 · Vite + React
+# UBot Frontend
 
-기존 HTML/CSS/Vanilla JS Mock을 Vite + React 개발 환경으로 옮긴 버전입니다. 기존 화면과 10개 시연 시나리오는 그대로 유지합니다.
+U봇 서비스의 Vite + React 프론트엔드입니다. 매장 검색, Kakao 지도, 관리자 매장 관리와 프로젝트 시연 화면을 포함합니다.
 
-현재 1차 마이그레이션 단계에서는 기존 마크업과 시연 로직을 React 엔트리에서 재사용합니다. 이후 화면별 컴포넌트와 React 상태로 순차 분리할 수 있습니다.
+## 기술 구성
 
-핵심 변경:
-- AI를 서비스 중심에서 빼고 전체 통신 서비스 안의 하나의 검색 기능으로 배치
-- 모바일에서 관측한 56px 헤더 / 흰 배경 / Pretendard / #FF2E98 / pill UI / 하단 5탭 문법 유지
-- 데스크톱은 소비자 통신사 웹사이트처럼 Global Navigation + Editorial Landing 구조
-- AI 화면은 기존의 단순 카드형 챗봇에서 Thread / 상태 / 실시간 인기 질문 / 상품 카드 / 지도 / 로그인 / 오류 / 재시도 / FAQ 미응답 등 실제 서비스 흐름 중심으로 변경
+- React 19
+- TypeScript 6
+- Vite 8
+- ESLint 10
+- Kakao Maps JavaScript SDK
+- Daum 우편번호 서비스
 
-## 시연 메뉴
-데스크톱 상단의 `시연`, 모바일 우측 상단 `⋯` 버튼을 누르면 10개 시나리오를 바로 실행할 수 있습니다.
+## 프로젝트 구조
 
-1. 비회원 → 실시간 인기 질문 → 최신폰 → 상품 상세 + 가까운 대리점
-2. FAQ 미응답 → 신뢰도 임계치 미달 → 상담원 연결 + 미응답 로그
-3. 답변 생성 실패 → 재시도 → 정상 응답
-4. "나의 혜택" → 로그인 유도
-5. 로그인 후 비회원 Thread 승계
-6. 모호한 결합상품 질문 → 재질문 → 추천 3개 → 결합 변경
-7. 관리자 미응답 로그 → FAQ 등록 → Vector DB 즉시 반영 → 동일 질문 정상 응답
-8. 최초 5G 질문 1.84s → 유사질문 Semantic Cache 0.12s
-9. 위치 기반 가까운 대리점 → 방문 예약 → 알림 Mock
-10. 관리자 운영 대시보드
+```text
+src/
+├── api/                    공통 API client와 도메인 API
+├── app/                    React 애플리케이션 진입점
+├── auth/                   토큰 저장소
+├── features/
+│   ├── admin-store/        관리자 매장 관리
+│   └── store-locator/      매장 검색과 지도
+├── legacy/                 기존 시연 화면과 임시 DOM 제어 코드
+├── shared/
+│   └── kakao/              Kakao Maps·우편번호 SDK 로더
+└── main.tsx
+```
 
-## 실행
+`legacy`는 기존 시연 동작을 보존하기 위한 전환 영역입니다. 새 기능은 `features`와 TypeScript 모듈에 작성하고, 기존 시연 화면도 기능 단위로 점진적으로 React 컴포넌트로 옮깁니다.
+
+## 로컬 실행
+
+Node.js LTS가 필요합니다.
+
 ```bash
-npm install
+npm ci
+copy .env.example .env.local
 npm run dev
 ```
 
-Vite가 출력하는 로컬 주소(기본 `http://localhost:5173`)로 접속합니다.
+기본 접속 주소는 `http://localhost:5173`입니다.
 
-## 각자 로컬 Spring 서버 연결
-
-두 명이 같은 프론트 저장소를 사용하면서 각자 자신의 Spring Boot 서버를 붙일 수 있습니다.
-
-먼저 `.env.example`을 `.env.local`로 복사합니다.
-
-```bash
-copy .env.example .env.local
-```
-
-각 개발자는 자신의 Spring 서버 주소만 다르게 설정하면 됩니다.
+## 환경변수
 
 ```env
 VITE_API_BASE_URL=/api
 VITE_API_PROXY_TARGET=http://localhost:8080
+VITE_DEV_PORT=5173
+VITE_BASE_PATH=/
 VITE_KAKAO_JAVASCRIPT_KEY=카카오_JavaScript_키
 ```
 
-프론트에서는 `src/api/client.js`의 공통 API client를 사용합니다.
+- `VITE_API_BASE_URL`: 브라우저가 호출할 API prefix 또는 배포된 백엔드 주소
+- `VITE_API_PROXY_TARGET`: 로컬 Vite proxy가 연결할 Spring Boot 주소
+- `VITE_DEV_PORT`: 로컬 개발 서버 포트
+- `VITE_BASE_PATH`: 루트 배포는 `/`, GitHub Pages는 `/저장소명/`
+- `VITE_KAKAO_JAVASCRIPT_KEY`: Kakao Maps 브라우저용 JavaScript 키
 
-```js
-import { api } from './api/client.js';
+Kakao REST API 키는 백엔드에서만 관리합니다. `.env.local`을 변경한 뒤에는 개발 서버를 다시 시작해야 합니다.
 
-const products = await api.get('/products');
-const result = await api.post('/login', { id: 'user', password: 'pw' });
-```
-
-개발 중 `/api/...` 요청은 Vite가 각자의 `VITE_API_PROXY_TARGET`으로 전달하므로, 기본적인 로컬 개발에서는 Spring 쪽 CORS 설정 없이도 사용할 수 있습니다. `.env.local`을 바꾼 뒤에는 `npm run dev`를 다시 시작해야 합니다.
-
-매장 찾기 화면은 Spring의 `/locations/search`, `/stores/nearby` API와 Kakao Maps JavaScript SDK를 사용합니다. `KAKAO_REST_API_KEY`는 백엔드에만 유지하고, 프론트에는 Kakao Developers에서 발급한 JavaScript 키만 `VITE_KAKAO_JAVASCRIPT_KEY`로 설정합니다.
-
-GitHub Pages에서도 지도를 띄우려면 Repository Settings의 Actions secret에 `VITE_KAKAO_JAVASCRIPT_KEY`, Actions variable에 배포된 백엔드의 HTTPS 주소를 `VITE_API_BASE_URL`로 등록합니다. Kakao Developers의 JavaScript SDK 허용 도메인에도 `https://ureca-ubot.github.io`를 등록해야 합니다.
-
-프로덕션 빌드 확인:
+## 검증
 
 ```bash
+npm run typecheck
+npm run lint
+npm run test
 npm run build
 ```
 
-또는
+PR을 올리기 전에 세 명령이 모두 성공해야 합니다.
 
-`https://ureca-ubot.github.io/UBot-FE-Mock/`
+## 포트와 배포
 
-모바일은 Chrome DevTools에서 360x616 또는 Android/iPhone viewport로 확인하면 됩니다.
+Vite 개발 서버는 기본적으로 5173을 사용합니다. 운영 환경의 80/443 포트는 Vite 코드가 아니라 Nginx, Docker 또는 배포 플랫폼에서 설정합니다.
 
-모든 상품/고객/위치/응답 데이터는 프로젝트 시연용 Mock입니다.
+운영에서는 같은 도메인 아래에서 다음 구성을 권장합니다.
 
+```text
+/       → React 정적 파일
+/api    → Spring Boot
+```
 
-## Branding update
-- Generated U봇 image logo integrated in desktop/mobile header
-- Removed O+/ONE+ text mark and the mobile 멤버십/◇ clutter
-- Added `assets/ubot-logo.png`, `assets/ubot-mark.png`
+SPA 경로를 직접 열 수 있도록 웹 서버에서 존재하지 않는 파일 요청을 `index.html`로 전달해야 합니다.
+
+GitHub Pages 배포 시에는 Actions secret `VITE_KAKAO_JAVASCRIPT_KEY`와 variable `VITE_API_BASE_URL`을 등록하고, Kakao Developers의 JavaScript SDK 허용 도메인에 배포 도메인을 추가합니다.
