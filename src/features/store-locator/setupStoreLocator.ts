@@ -34,7 +34,6 @@ const KOREA_MAP_LIMIT = {
 const STORE_PAGE_SIZE = 20;
 const MAP_LIST_LIMIT = 50;
 const SERVER_CLUSTER_MIN_LEVEL = 8;
-const INDIVIDUAL_MARKER_MAX_LEVEL = SERVER_CLUSTER_MIN_LEVEL - 1;
 
 function formatDistance(distanceKm?: number) {
   if (typeof distanceKm !== 'number' || !Number.isFinite(distanceKm)) return '';
@@ -839,4 +838,3 @@ export function setupStoreLocator(): () => void {
     document.removeEventListener('ubot:route-change', handleRouteChange);
   };
 }
-
